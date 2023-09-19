@@ -1,0 +1,5 @@
+2023-09-14 16:45:40.223 Client(phoxi_api_102678) created data connection
+2023-09-14 16:45:40.228 PhoXiTest Init OK
+2023-09-14 16:45:40.228 PhoXi Device PhoXi Scanner is Connected
+2023-09-14 16:45:45.229 Method wrapper for command GetHWStatus error: Can't process request
+2023-09-14 16:45:53.878 Method wrapper for command GetHWStatus error: Can't process request

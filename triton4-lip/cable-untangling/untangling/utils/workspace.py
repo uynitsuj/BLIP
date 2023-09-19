@@ -1,0 +1,9 @@
+import numpy as np
+
+# NB THESE ARE ALL IN PIXEL COORDINATES
+WORKSPACE_TOP_LEFT = np.array((34, 156))
+WORKSPACE_BOTTOM_RIGHT = np.array((530, 1031))
+WORKSPACE_CENTER = (WORKSPACE_TOP_LEFT + WORKSPACE_BOTTOM_RIGHT) / 2
+
+def left_of_workspace(point):
+    return point[1] < WORKSPACE_CENTER[1]
