@@ -81,6 +81,10 @@ col_interface = CollisionInterface()
 
 class GraspSelector:
     def __init__(self, rgbd_image, intrinsics, T_CAM_BASE,grabbing_endpoint=False, topdown=False):
+        
+        # print(type(rgbd_image))
+        # plt.imshow(rgbd_image.color._data)
+        # plt.show()
         self.grabbing_endpoint = grabbing_endpoint
         if topdown:
             self.img = erode_image(rgbd_image[:, :, :3], kernel=(3, 3))
@@ -93,6 +97,8 @@ class GraspSelector:
         self.T_CAM_BASE = T_CAM_BASE
         self.col_interface = col_interface
         self.col_interface.setup()
+        # print("points 3d shape")
+        # print(self.points_3d.shape)
         self.col_interface.set_scancloud(self.points_3d)
         self.yk = YuMiKinematics()
         self.planner = Planner()

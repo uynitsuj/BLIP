@@ -13,7 +13,9 @@ import matplotlib.pyplot as plt
 # import plotly.express as px
 from collections import deque, OrderedDict
 import pandas as pd
-from cable_tracing.cable_tracing.utils.utils import *
+sys.path.append('/home/mallika/triton4-lip/cable-untangling/untangling/utils/cable_tracing') 
+
+from cable_tracing.utils.utils import *
 import logging
 
 STEP_SIZES = np.array([16, 24, 32]) # 10 and 20 #np.arange(3.5, 25, 10)

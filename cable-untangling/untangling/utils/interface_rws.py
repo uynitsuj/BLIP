@@ -274,8 +274,12 @@ class Interface:
         FLAG: FIX!
         '''
         # arm = self.y.right
-        arm = self.y.left if which_arm == "left" else self.y.right
-        arm.open_gripper()
+        # arm = self.y.left if which_arm == "left" else self.y.right
+        # arm.open_gripper()
+        if which_arm == "left":
+            self.y.left.open_gripper()
+        else:
+            self.y.right.open_gripper()
 
 
     def close_gripper(self, which_arm):

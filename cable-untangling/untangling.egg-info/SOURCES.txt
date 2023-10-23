@@ -1,5 +1,7 @@
 setup.py
+./untangling/hparams.py
 ./untangling/keypoint_untangling.py
+./untangling/keypoint_untangling_backup.py
 ./untangling/point_picking.py
 ./untangling/shake.py
 ./untangling/slide.py

@@ -108,10 +108,24 @@ class CollisionInterface:
             self.procs[-1].start()
         
     def set_scancloud(self,pointcloud):
-        bounds=Box(np.array([-10,-10.,self.z_min]),np.array([10,10,.3]),"base_link")
+        # print(pointcloud.shape)
+        # print(pointcloud.data.shape)
+        # print(pointcloud.data[0,:].min(), pointcloud.data[0,:].max())
+        # print(pointcloud.data[1,:].min(), pointcloud.data[1,:].max())
+        # print(pointcloud.data[2,:].min(), pointcloud.data[2,:].max())
+        bounds=Box(np.array([-10,-10.,self.z_min]),np.array([10,10,pointcloud.data[2,:].max()]),"base_link")
+        # bounds = Box(np.array([pointcloud.data[0,:].min(),pointcloud.data[1,:].min(),pointcloud.data[2,:].min()]), np.array([pointcloud.data[0,:].max(), pointcloud.data[1,:].min(),pointcloud.data[2,:].min()]), "base_link")
+        # print(bounds.min_pt, bounds.max_pt)
+        # print("Bounds", bounds)
         pointcloud,_ = pointcloud.box_mask(bounds)
+        # print("pointcloud shape")
+        # print(pointcloud.data.shape)
         self.tri_pc = trimesh.PointCloud(pointcloud.data.T)
+        # print("vertices shape")
+        # print(self.tri_pc.vertices.shape)
         self.point_mesh = trimesh.voxel.ops.points_to_marching_cubes(self.tri_pc.vertices,pitch=.005)
+        # print("bounds")
+        # print(self.point_mesh.bounds)
         for i in range(len(self.procs)):
             self.procs[i].add_work('set_meshes',(self.point_mesh,self.wrist_mesh),0)
 

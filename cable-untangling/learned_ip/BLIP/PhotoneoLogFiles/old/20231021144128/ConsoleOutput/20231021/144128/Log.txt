@@ -1,0 +1,3 @@
+2023-10-21 14:41:40.470 Error: Client(phoxi_api_4051) can't create connector to the server( phoxi_api_0), or can't send syn packet
+2023-10-21 14:41:40.470 Warning: Unknown error in API call response
+2023-10-21 14:41:40.470 Method wrapper for command GetDeviceList error: error

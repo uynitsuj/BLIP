@@ -2,13 +2,18 @@
 from codecs import IncrementalDecoder
 from pickle import FALSE
 from turtle import done, left
+import sys
+sys.path.append('/home/mallika/triton4-lip/') 
+
 from detectron2_repo import analysis as loop_detectron
 from untangling.utils.grasp import GraspSelector, GraspException
 from untangling.utils.interface_rws import Interface
 from autolab_core import RigidTransform, RgbdImage, DepthImage, ColorImage
 import numpy as np
 from untangling.utils.tcps import *
-from cable_tracing.tracers.simple_uncertain_trace import trace
+
+sys.path.append('/home/mallika/triton4-lip/') 
+from untangling.utils.cable_tracing.cable_tracing.tracers.simple_uncertain_trace import trace
 # from untangling.shake import shake
 import time
 from untangling.point_picking import *
@@ -142,9 +147,12 @@ class FullPipeline():
         pts = np.vstack((valid_y, valid_x)).T
         return pts[np.argmin(np.linalg.norm(pts - np.array(yx)[None, :], axis=-1))]
 
-    def get_endpoints(self):
+    def get_endpoints(self, img=None):
         # model not used, already specified in loop_detectron
-        self.img = self.iface.take_image()
+        if img is not None:
+            self.img = img
+        else:
+            self.img = self.iface.take_image()
         endpoint_boxes, out_viz = loop_detectron.predict(self.img.color._data, thresh=0.99, endpoints=True)
         plt.clf()
         plt.imshow(out_viz)

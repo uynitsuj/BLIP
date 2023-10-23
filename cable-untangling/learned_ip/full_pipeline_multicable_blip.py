@@ -1,8 +1,10 @@
+import sys
+sys.path.append('/home/mallika/triton4-lip/lip_tracer/') 
 
-from lip_tracer.blip_pipeline.add_noise_to_img import run_tracer_with_transform
-from lip_tracer.blip_pipeline.divergences import get_divergence_pts
+from blip_pipeline.add_noise_to_img import run_tracer_with_transform
+from blip_pipeline.divergences import get_divergence_pts
 # from lip_tracer.blip_pipeline.refine_push_location import refine_push_location_pts
-from lip_tracer.blip_pipeline.make_endpoint_mapping import get_matching
+from blip_pipeline.make_endpoint_mapping import get_matching
 from learn_from_demos_ltodo import DemoPipeline
 from untangling.utils.grasp import GraspSelector
 from untangling.point_picking import click_points_simple, click_points_closest
@@ -30,10 +32,34 @@ def calculate_pixel_arc_length(trace):
         arc_length += euclidean_dist(trace[i][0], trace[i][1], trace[i+1][0], trace[i+1][1])
     return arc_length
 
+# def visualize_trace(img, trace, save=False):
+#     img = img.copy()
+#     def color_for_pct(pct):
+#         return colorsys.hsv_to_rgb(pct, 1, 1)[0] * 255, colorsys.hsv_to_rgb(pct, 1, 1)[1] * 255, colorsys.hsv_to_rgb(pct, 1, 1)[2] * 255
+#     for i in range(len(trace) - 1):
+#         # if trace is ordered dict, use below logic
+#         if not isinstance(trace, OrderedDict):
+#             pt1 = tuple(trace[i].astype(int))
+#             pt2 = tuple(trace[i+1].astype(int))
+#         else:
+#             trace_keys = list(trace.keys())
+#             pt1 = trace_keys[i]
+#             pt2 = trace_keys[i + 1]
+#         cv2.line(img, pt1[::-1], pt2[::-1], color_for_pct(i/len(trace)), 4)
+#     plt.title("Trace Visualized")
+#     plt.imshow(img)
+#     if not save:
+#         plt.show()
+#     else:
+#         plt.savefig("multicable_baseline.png")
+
+
 def visualize_trace(img, trace, save=False):
     img = img.copy()
+
     def color_for_pct(pct):
         return colorsys.hsv_to_rgb(pct, 1, 1)[0] * 255, colorsys.hsv_to_rgb(pct, 1, 1)[1] * 255, colorsys.hsv_to_rgb(pct, 1, 1)[2] * 255
+
     for i in range(len(trace) - 1):
         # if trace is ordered dict, use below logic
         if not isinstance(trace, OrderedDict):
@@ -43,14 +69,27 @@ def visualize_trace(img, trace, save=False):
             trace_keys = list(trace.keys())
             pt1 = trace_keys[i]
             pt2 = trace_keys[i + 1]
+
+        # Swap (y, x) to (x, y) for drawing the line with OpenCV
         cv2.line(img, pt1[::-1], pt2[::-1], color_for_pct(i/len(trace)), 4)
+
+    # Show the image using matplotlib
+    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+
+    for i, point in enumerate(trace):
+        if not isinstance(trace, OrderedDict):
+            x, y = point.astype(int)
+        else:
+            trace_keys = list(trace.keys())
+            y, x = trace_keys[i]
+        #plt.text(y, x, str(i), color="red", fontsize=9, ha="right", va="bottom")
+
     plt.title("Trace Visualized")
-    plt.imshow(img)
+
     if not save:
         plt.show()
     else:
         plt.savefig("multicable_baseline.png")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -141,6 +180,8 @@ if __name__ == "__main__":
             if step == 0:
                 trace_t, heatmaps, crops, normalized_covs, normalized_cable_density = run_tracer_with_transform(img_rgb, 10, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=start)
                 # trace_t, noisy_traces = run_tracer_with_transform(img_rgb, 10, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=start)
+
+                print(trace_t[0])
                 
                 baseline_trace = trace_t[0]
                 baseline_image = img_rgb
@@ -208,13 +249,13 @@ if __name__ == "__main__":
 
                 plt.subplot(1, 2, 1)
                 plt.plot(covariances, marker='o', linestyle='-')
-                plt.title('Covariances Across Trace')
+                plt.title('Delta Covariances Across Trace')
                 plt.xlabel('Trace Points')
                 plt.ylabel('Covariance')
 
                 plt.subplot(1, 2, 2)
                 plt.plot(cable_density, marker='x', linestyle='--')
-                plt.title('Cable Density Across Trace')
+                plt.title('Delta Cable Density Across Trace')
                 plt.xlabel('Trace Points')
                 plt.ylabel('Cable Density')
 
@@ -227,7 +268,7 @@ if __name__ == "__main__":
             delta_covariances.append(0)
             delta_covariances.append(0)
             delta_densities.insert(0, 0)
-            plot_covs_and_density(delta_covariances, delta_densities)
+            #plot_covs_and_density(delta_covariances, delta_densities)
             
             eps = 0.01
             delta_covariances = [0 if dc < eps and dc > 0 else dc for dc in delta_covariances]
@@ -246,7 +287,7 @@ if __name__ == "__main__":
                     total_val += curr_sum
                     if curr_sum > max_val:
                         max_val = curr_sum
-                        max_idx = i
+                        max_idx = i + len(starting_pixels)
                 else:
                     uncertainty.append(0)
 
