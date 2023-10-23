@@ -33,6 +33,22 @@ def click_points(img, CAM_T, intr):
     plt.show()
     return left_coords,right_coords
 
+def click_points_single(img):
+    fig, (ax1,ax2) = plt.subplots(1,2)
+    ax1.imshow(img.color.data)
+    ax2.imshow(img.depth.data)
+    coords = None
+    def onclick(event):
+        xind,yind = int(event.xdata),int(event.ydata)
+        coord=(xind,yind)
+        lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
+        nonlocal coords
+        if(event.button==1):
+            coords=coord
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+    plt.show()
+    return coords
+
 def click_points_simple(img):
     fig, (ax1,ax2) = plt.subplots(1,2)
     ax1.imshow(img.color.data)
@@ -49,7 +65,41 @@ def click_points_simple(img):
             right_coords=coords
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
-    return left_coords,right_coords
+    return left_coords, right_coords
+
+def click_points_closest(img, endpoints):
+    fig, ax = plt.subplots(1, 1)
+    ax.imshow(img)
+    ax.scatter(endpoints[:, 1], endpoints[:, 0], s=5, c='r')
+
+    left_coords,right_coords = None, None
+    left_closest_endpoint, right_closest_endpoint = None, None
+
+    def get_closest_endpoint(coords):
+        min_dist = np.inf
+        closest_endpoint = None
+        for endpoint in endpoints:
+            dist = np.linalg.norm(endpoint - coords[::-1])
+            if dist < min_dist:
+                min_dist = dist
+                closest_endpoint = endpoint
+        return closest_endpoint
+
+    def onclick(event):
+        xind, yind = int(event.xdata),int(event.ydata)
+        coords = (xind, yind)
+        nonlocal left_coords, right_coords, left_closest_endpoint, right_closest_endpoint
+        if event.button == 1:
+            left_coords = coords
+            left_closest_endpoint = get_closest_endpoint(coords)
+        elif event.button == 3:
+            right_coords = coords
+            right_closest_endpoint = get_closest_endpoint(coords)
+
+    _ = fig.canvas.mpl_connect('button_press_event', onclick)
+    plt.show()
+
+    return left_closest_endpoint, right_closest_endpoint
 
 def click_points_show_points(img, point1, point2):
     fig, (ax1,ax2) = plt.subplots(1,2)

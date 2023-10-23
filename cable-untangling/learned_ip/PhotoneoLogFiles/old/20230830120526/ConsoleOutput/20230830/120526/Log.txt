@@ -1,0 +1,4 @@
+2023-08-30 12:05:27.573 Client(phoxi_api_730231) created data connection
+2023-08-30 12:05:27.605 PhoXiTest Init OK
+2023-08-30 12:05:27.605 PhoXi Device PhoXi Scanner is Connected
+2023-08-30 13:00:40.659 Method wrapper for command GetHWStatus error: error

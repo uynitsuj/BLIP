@@ -164,7 +164,6 @@ class DemoPipeline(FullPipeline):
             xb = perpendicular_unit_vec[0]
             yb = perpendicular_unit_vec[1]
             rotation_matrix = np.array([[xa*xb + ya*yb, xb*ya - xa*yb], [xa*yb - xb*ya, ya*yb + xa*xb]])
-            # import pdb; pdb.set_trace()
             if exec_index == 0:
                 direction_vec_exec = trace_pixels_exec[exec_index + 2] - trace_pixels_exec[exec_index]
                 direction_check_vec_exec = direction_vec_exec
@@ -201,8 +200,43 @@ class DemoPipeline(FullPipeline):
             #     perpendicular_unit_vec_exec = -1 * perpendicular_unit_vec_exec
         return anchor_point + perpendicular * perpendicular_unit_vec_exec + projection * direction_unit_vec_exec
 
+    
+    # for now assumes just one endpoint
+    def get_trace_pixels(self, img, endpoint):
+        traces = []
+        crossings = []
+
+        if len(self.endpoints) != 2:
+            import pdb; pdb.set_trace()
+        assert len(self.endpoints) == 2, "Must have detected two endpoints"
+
+        # categorize left and right endpoints
+        if(self.endpoints[0][1] < self.endpoints[1][1]):
+            left_endpoint = self.endpoints[0]
+            right_endpoint = self.endpoints[1]
+        else:
+            left_endpoint = self.endpoints[1]
+            right_endpoint = self.endpoints[0]
+
+        # choose the correct endpoint
+        if endpoint == "left":
+            endpoint = left_endpoint
+        else:
+            endpoint = right_endpoint
+
+        starting_pixels, analytic_trace_problem = self.get_trace_from_endpoint(endpoint)
+        starting_pixels = np.array(starting_pixels)
+        self.tkd._set_data(self.img.color._data, starting_pixels)
+        perception_result = self.tkd.perception_pipeline(endpoints=self.endpoints, viz=False, vis_dir=self.output_vis_dir) #do_perturbations=True
+        traces.append(self.tkd.pixels)
+        crossings.append(self.tkd.detector.crossings)
+
+        if len(traces) > 0:
+            return traces[0], crossings[0] 
         
-    def get_trace_pixels(self, img, endpoint="both"):
+
+    # not using this currently - add perturb in later
+    def get_trace_pixels_with_perturb(self, img, endpoint="both"):
         print("started perception")
         traces = []
         crossings = []
@@ -417,12 +451,8 @@ class DemoPipeline(FullPipeline):
 
     def collect_demo_action(self):
         self.img = self.iface.take_image(); 
-
-        # replace this with click points for endpoints
-
-        # self.get_endpoints()
-        self.get_endpoints_from_clicks()
-        trace_pixels, trace_crossings = self.get_trace_pixels(self.img, endpoint="right")
+        self.get_endpoints()
+        trace_pixels, trace_crossings = self.get_trace_pixels(self.img, "right")
         self.visualize_all_crossings(self.img, trace_crossings)
 
         # gather click points from user
@@ -431,7 +461,6 @@ class DemoPipeline(FullPipeline):
         print(grasp_left)
         print(grasp_right)
         
-
         # gather place points from user
         print("Choose place points")
         place_left, place_right= click_points_simple(self.img)
@@ -457,6 +486,7 @@ class DemoPipeline(FullPipeline):
         self.g = GraspSelector(self.img, self.iface.cam.intrinsics, self.iface.T_PHOXI_BASE)
         grasp_left_pose, grasp_right_pose = self.calculate_grasps(grasp_left, grasp_right, self.g, self.iface)
         self.iface.grasp(grasp_left_pose, grasp_right_pose)
+
         self.iface.sync()
 
         if place_left is not None:
@@ -636,16 +666,16 @@ class DemoPipeline(FullPipeline):
             if place_left is not None:
                 average_grasp_place = (grasp_left + place_left)/2
                 #checking if x coord is to the right of the center of the image
-            if average_grasp_place[1] > 543:
+            if average_grasp_place[1] > 590:
                 grasp_right, grasp_left = grasp_left, grasp_right
                 place_right, place_left = place_left, place_right
 
         elif grasp_right is not None:
             average_grasp_place = grasp_right
-            if place_left is not None:
+            if place_right is not None:
                 average_grasp_place = (grasp_right + place_right)/2
                 #checking if x coord is to the right of the center of the image
-            if average_grasp_place[1] < 543:
+            if average_grasp_place[1] < 590:
                 grasp_right, grasp_left = grasp_left, grasp_right
                 place_right, place_left = place_left, place_right
             
@@ -657,12 +687,120 @@ class DemoPipeline(FullPipeline):
         curr_folder = str(max([int(f) for f in prev_folders]) + 1)
         folder = save_dir + "/" + curr_folder + "/"  
         os.mkdir(folder)  
-        return folder             
+        return folder 
 
-    def exec_demos(self, demos, save_dir = None) :
+    def exec_demo_step(self, demos, i, save_dir = None):
         if save_dir is not None:
-            self.output_vis_dir = self.mkdir_get_path(save_dir)
-            self.save=True
+            self.output_vis_dir = save_dir
+            if not os.path.exists(self.output_vis_dir):
+                os.mkdir(self.output_vis_dir)
+            self.save = True
+        else:
+            self.save=False
+        self.demo_counter = i
+        if i == 0:
+            pick_imit_type = 'distance'
+            place_imit_type = 'distance'
+        else: 
+            pick_imit_type = 'crossing'
+            place_imit_type = 'crossing'
+
+        grasp_left = None
+        grasp_right = None
+        place_left = None
+        place_right = None
+
+        self.img = self.iface.take_image()
+        self.get_endpoints()
+        if self.endpoints.shape[0] == 0:
+            failure = True
+        trace_pixels_exec, trace_crossings_exec = self.get_trace_pixels(self.img, endpoint="right")
+
+        self.visualize_all_crossings(demos[i]['img'], demos[i]['trace_crossings'], file_name= "demo_crossings_{}".format(i))
+        self.visualize_all_crossings(self.img, trace_crossings_exec, file_name="exec_crossings_{}".format(i))
+
+        if demos[i]['grasp_left'] is not None:
+            grasp_left = self.imitate_point(demos[i]['grasp_left'], demos[i]['trace_pixels'], demos[i]['trace_crossings'], trace_pixels_exec, trace_crossings_exec, demos[i]['img'], imit_type=pick_imit_type)
+            if demos[i]['place_left'] is not None:
+                place_left = self.imitate_point(demos[i]['place_left'], demos[i]['trace_pixels'], demos[i]['trace_crossings'], trace_pixels_exec, trace_crossings_exec, demos[i]['img'], imit_type=place_imit_type, allow_off_cable=True)
+                
+        if demos[i]['grasp_right'] is not None:
+            grasp_right = self.imitate_point(demos[i]['grasp_right'], demos[i]['trace_pixels'], demos[i]['trace_crossings'], trace_pixels_exec, trace_crossings_exec, demos[i]['img'], imit_type=pick_imit_type)  
+            if demos[i]['place_right'] is not None:
+                place_right = self.imitate_point(demos[i]['place_right'], demos[i]['trace_pixels'], demos[i]['trace_crossings'], trace_pixels_exec, trace_crossings_exec, demos[i]['img'], imit_type=place_imit_type, allow_off_cable=True)
+
+        grasp_left, grasp_right, place_left, place_right = self.find_best_arm(grasp_left, grasp_right, place_left, place_right)        
+        #visualize crossings
+
+        self.visualize(demos[i]['img'], demos[i]['grasp_left'], demos[i]['grasp_right'], demos[i]['place_left'], demos[i]['place_right'], file_name="demos_pick_place_{}".format(i))
+        self.visualize(self.img, grasp_left, grasp_right, place_left, place_right, file_name="exec_pick_place_{}".format(i))
+
+        # calculate and execute the the grasps
+        self.g = GraspSelector(self.img, self.iface.cam.intrinsics, self.iface.T_PHOXI_BASE)
+        #switching back to x, y
+        if grasp_left is not None:
+            grasp_left = grasp_left[::-1]
+        if grasp_right is not None:
+            grasp_right = grasp_right[::-1]
+
+        l_grasp, r_grasp = self.calculate_grasps(grasp_left, grasp_right, self.g, self.iface)
+        self.iface.grasp(l_grasp=l_grasp, r_grasp=r_grasp)
+
+        #calculate and execute the places
+        if place_left is not None:
+            #switching back to x, y
+            place = [int(place_left[1]), int(place_left[0])]
+            intermediate_transform, place_transform = self.calculate_place_transforms(place, self.g, self.iface, "left")
+            
+            self.iface.go_cartesian(
+            l_targets=[intermediate_transform], removejumps=[5, 6]
+            )
+            self.iface.sync()
+
+
+            self.iface.go_cartesian(
+            l_targets=[place_transform], removejumps=[5, 6]
+            )
+            self.iface.sync()
+
+            #calculate and execute the places
+        if place_right is not None:
+            #switching back to x, y
+            place = [int(place_right[1]), int(place_right[0])]
+            intermediate_transform, place_transform = self.calculate_place_transforms(place, self.g, self.iface, "right")
+
+            self.iface.go_cartesian(
+            r_targets=[intermediate_transform], removejumps=[5, 6]
+            )
+            self.iface.sync()
+
+
+            self.iface.go_cartesian(
+            r_targets=[place_transform], removejumps=[5, 6]
+            )
+            self.iface.sync()    
+
+        self.iface.open_grippers()
+        self.iface.sync()
+        self.iface.home()
+        self.iface.sync()
+
+    
+
+
+
+
+
+    def exec_demos(self, demos, save_dir = None, two_step_loop=False) :
+        # if save_dir is not None:
+        #     self.output_vis_dir = self.mkdir_get_path(save_dir)
+        #     self.save=True
+
+        if save_dir is not None:
+            self.output_vis_dir = save_dir
+            if not os.path.exists(self.output_vis_dir):
+                os.mkdir(self.output_vis_dir)
+            self.save = True
         else:
             self.save=False
 
@@ -670,12 +808,23 @@ class DemoPipeline(FullPipeline):
 
         print("path", self.output_vis_dir)
         for i in range(len(demos)):
-            if i == 0:
-                pick_imit_type = 'distance'
-                place_imit_type = 'distance'
-            else: 
-                pick_imit_type = 'crossing'
-                place_imit_type = 'crossing'
+            if two_step_loop:
+                if i == 0 or i == 1:
+                    pick_imit_type = 'distance'
+                    place_imit_type = 'distance'
+                else: 
+                    pick_imit_type = 'crossing'
+                    place_imit_type = 'crossing'
+
+            else:
+                if i == 0:
+                    pick_imit_type = 'distance'
+                    place_imit_type = 'distance'
+                else: 
+                    pick_imit_type = 'crossing'
+                    place_imit_type = 'crossing'
+
+
             self.iface.open_grippers()
             self.iface.sync()
             self.iface.home()
@@ -761,6 +910,7 @@ class DemoPipeline(FullPipeline):
         self.iface.sync()
         self.iface.home()
         self.iface.sync()
+
     
 
 
@@ -815,7 +965,7 @@ class DemoPipeline(FullPipeline):
     #                 self.iface.y.reset()
     #             else:
     #                 raise e
-    #                 self.logger.info("Uncaught exception, still recovering " + str(e))
+    #                 self.logger.info("Uncaught exception, still recovering " + str(e))collect_f
     #                 self.iface.y.reset()
     #             self.iface.sync()
                 
@@ -837,12 +987,12 @@ if __name__ == "__main__":
 
     # test_img = np.load("knot_tye_imgs/oh_11.npy", allow_pickle=True).item()
     # fullPipeline.check_imitate_point(demo_dict, test_img, imit_type="distance")
-    fullPipeline.collect_full_demo("test")
+    fullPipeline.collect_full_demo("Sep8_2_step_loop_center")
 
     # fullPipeline.collect_images(0)
 
-    # demos = np.load("knot_demos/oh9_white_thick_rope_4_crossings.npy", allow_pickle=True)
-    # fullPipeline.exec_demos(demos, 'knot_tye_exps/two_distractors_hard')
+    # demos = np.load("knot_demos/Sep8_2_step_loop.npy", allow_pickle=True)
+    # fullPipeline.exec_demos(demos, "./test_demos/", two_step_loop=True)
 
 
     #useful code

@@ -5,12 +5,12 @@ import numpy as np
 
 
 
-
-
 class MultiCable(FullPipeline):
     def __init__(self, viz, loglevel, initialize_iface):
         FullPipeline.__init__(self, viz, loglevel, initialize_iface)
         self.output_vis_dir = "./multicable/"
+        self.iface.home()
+        self.iface.sync()
         self.img = self.iface.take_image()
 
     def get_analytic_trace(self):
@@ -31,7 +31,7 @@ class MultiCable(FullPipeline):
     def do_learned_perception_pipeline(self, starting_pixels):
         # get trace and u/o crossings
         self.tkd._set_data(self.img.color._data, starting_pixels)
-        perception_result = self.tkd.perception_pipeline(endpoints=self.endpoints, viz=True, vis_dir=self.output_vis_dir)
+        perception_result = self.tkd.perception_pipeline(endpoints=self.endpoints, viz=False, vis_dir=self.output_vis_dir)
 
 
 if __name__ == "__main__":

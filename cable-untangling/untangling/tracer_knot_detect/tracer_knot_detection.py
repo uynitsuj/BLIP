@@ -206,8 +206,8 @@ class TracerKnotDetector():
 
     def _getuoitem(self, uo_data, i=None):
         uon_data = uo_data
-        if i is not None:
-            cv2.imwrite(self.output_vis_dir + f'uo_original_{i}.png', uon_data['crop_img'][:, :, :3])
+        # if i is not None:
+        #     cv2.imwrite(self.output_vis_dir + f'uo_original_{i}.png', uon_data['crop_img'][:, :, :3])
         uon_model_input = self._getuonitem(uon_data)
         img = uon_model_input.clone().detach()
         img = img.squeeze(0).numpy().transpose((1, 2, 0))
@@ -271,6 +271,7 @@ class TracerKnotDetector():
         img = self.img.copy()
         file_name = f'full_img_{self.vis_idx}'
         img = self.tracer.visualize_path(img, self.pixels)
+        import pdb; pdb.set_trace()
         cv2.imshow("trace", img)
         cv2.waitKey(1)
         if path is None:
@@ -377,8 +378,8 @@ class TracerKnotDetector():
             img = img.squeeze(0).numpy().transpose((1, 2, 0))
             img[:, :, 1] = self._gauss_2d_batch_efficient_np(self.crop_size, self.crop_size, [self.crop_width], [self.crop_width], weights=[1.0])
             uo_model_input = self.transform(img.copy())
-            if file_name is not None:
-                self._visualize_tensor(uo_model_input, file_name)
+            # if file_name is not None:
+            #     # self._visualize_tensor(uo_model_input, file_name)
             predictor = Prediction(self.uo_model, self.uo_config.num_keypoints, self.uo_config.img_height, self.uo_config.img_width, parallelize=self.parallel)
             updated_prediction_prob = predictor.predict(uo_model_input).cpu().detach().numpy().squeeze()
             if updated_prediction_prob >= self.threshold:
@@ -389,8 +390,8 @@ class TracerKnotDetector():
             return pred, prediction_prob
 
     def _predict_uo(self, uo_model_input, file_name=None):
-        if file_name is not None:
-            self._visualize_tensor(uo_model_input, file_name)
+        # if file_name is not None:
+        #     self._visualize_tensor(uo_model_input, file_name)
         predictor = Prediction(self.uo_model, self.uo_config.num_keypoints, self.uo_config.img_height, self.uo_config.img_width, parallelize=self.parallel)
         updated_prediction_prob = predictor.predict(uo_model_input).cpu().detach().numpy().squeeze()
         if updated_prediction_prob >= self.threshold:

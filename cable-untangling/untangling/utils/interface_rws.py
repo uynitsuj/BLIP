@@ -146,13 +146,18 @@ class Interface:
 
         else:
             self.cam = PhoXiSensor("1703005")
-            self.cam.start()
-            # m change
-            # img = self.cam.read(cam_only=False)
-            img = self.cam.read()
-            self.cam.intrinsics = self.cam.create_intr(img.width, img.height)
-            self.img_width = img.width
-            self.img_height = img.height
+            # self.cam.start()
+            # # m change
+            # # img = self.cam.read(cam_only=False)
+            #img = self.cam.read()
+            #print(img.width, img.height)
+            #print(type(img.width), type(img.height))
+            height, width = 772, 1032
+            self.cam.intrinsics = self.cam.create_intr(width, height)
+            #self.img_width = img.width
+            #print(img.width)
+            #self.img_height = img.height
+            #print(img.height)
         self.planner = Planner()
 
         self.before_after_poses_dir = '/home/mallika/triton4-lip/cable-untangling/untangling/utils/debug_motions/before_after_poses'
@@ -162,6 +167,7 @@ class Interface:
         return self.yk.l_tcp_frame if which_arm == "left" else self.yk.r_tcp_frame
 
     def take_image(self, cam_only=False, depth=False):
+        # import pdb; pdb.set_trace()
         if self.zed:
             if depth:
                 img_left, img_right, depth_data = self.cam.capture_image(depth=depth)
@@ -177,9 +183,17 @@ class Interface:
                 return img_left, img_right, depth_data
             return img_left, img_right
         else:
+            self.cam.start()
             # m change
-            # return self.cam.read(cam_only)
-            return self.cam.read()
+            # img = self.cam.read(cam_only=False)
+            img = self.cam.read()
+            # self.cam.intrinsics = self.cam.create_intr(img.width, img.height)
+            # self.img_width = img.width
+            # self.img_height = img.height
+            return img
+            # # m change
+            # # return self.cam.read(cam_only)
+            # return self.cam.read()
 
     def set_speed(self, speed):
         """
@@ -251,8 +265,9 @@ class Interface:
         #     self.cam.stop()
 
     def open_grippers(self):
-        self.y.left.open_gripper()
         self.y.right.open_gripper()
+        self.y.left.open_gripper()
+        # self.y.right.open_gripper()
 
     def open_gripper(self, which_arm):
         '''
@@ -403,7 +418,6 @@ class Interface:
             'fine': fine,
             'table_z': table_z,
         })
-        import pdb; pdb.set_trace()
         l_cur = self.y.left.get_joints()
         r_cur = self.y.right.get_joints()
 
@@ -1660,12 +1674,15 @@ class Interface:
             self.y.move_joints_sync(l_q, r_q, speed=self.speed)
             print("move joints")
         else:
-            if len(l_q) > 0:
-                self.y.left.move_joints_traj(
-                    l_q, speed=self.speed, zone="z10")
             if len(r_q) > 0:
                 self.y.right.move_joints_traj(
                     r_q, speed=self.speed, zone="z10")
+            if len(l_q) > 0:
+                self.y.left.move_joints_traj(
+                    l_q, speed=self.speed, zone="z10")
+            # if len(r_q) > 0:
+            #     self.y.right.move_joints_traj(
+            #         r_q, speed=self.speed, zone="z10")
 
     def grasp_single(self, which_arm, grasp):
         if which_arm == 'left':
@@ -1681,10 +1698,15 @@ class Interface:
         attempts
         both arguments should be a Grasp object
         """
+        # self.open_grippers()
         if topdown:
-            self.open_grippers()
-            l_grasp.pose.translation[2] = 0.05
-            r_grasp.pose.translation[2] = 0.05
+            # self.open_gripper('right')
+            # self.sync()
+            # self.sync()
+            # self.open_grippers()
+            # self.sync()
+            l_grasp.pose.translation[2] = 0.04 #CHANGE HERE: 0.05 -> 0.04
+            r_grasp.pose.translation[2] = 0.05 
             l_grasp.pregrasp_dist = 0.25
             r_grasp.pregrasp_dist = 0.25
             l_rot_vector = l_grasp.pose.rotation[:3, :3] @ [1, 0, 0]
@@ -1717,6 +1739,7 @@ class Interface:
             self.close_gripper('right')
             r_pre = r_grasp.compute_pregrasp()
             r_waypoints.append(r_pre)
+
         try:
             self.go_cartesian(l_waypoints, r_waypoints, fine=False)
         except:
@@ -1818,11 +1841,15 @@ class Interface:
     #         self.y.right.close_gripper() if not sliding else self.y.left.slide_gripper()
     #     time.sleep(self.GRIP_SLEEP_TIME)
 
-    def sync(self, timeout=10): # used to be 15
+    def sync(self, timeout=15): # used to be 15
         logger.debug("Starting sync")
         self.y.left.sync(timeout=timeout)
+        # time.sleep(1)
         self.y.right.sync(timeout=timeout)
+        # time.sleep(1)
         logger.debug("Ending sync")
+        #time.sleep(1) # small fix bc sync not working
+
 
     def refine_states(self, left=True, right=True, t_tol=0.02, r_tol=0.2):
         """

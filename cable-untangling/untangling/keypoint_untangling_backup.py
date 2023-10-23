@@ -399,7 +399,7 @@ def run_inference(img_masked, img_raw, depth_masked=None, random=False, without_
     if interactive_trace:
         return (None, None, True, True, 0, 0)
     if path_ret is None and uncertainty:
-        logging.warning("Uncertain trace result.")
+        logging.warning("Uncertain analytic trace result.")
         trace_uncertain = True
 
     if not trace_uncertain:

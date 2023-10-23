@@ -1,0 +1,3 @@
+2023-09-14 20:48:35.673 Client(phoxi_api_152884) created data connection
+2023-09-14 20:48:35.695 PhoXiTest Init OK
+2023-09-14 20:48:35.695 PhoXi Device PhoXi Scanner is Connected

@@ -27,7 +27,7 @@ import pycocotools
 from detectron2.evaluation import COCOEvaluator, inference_on_dataset
 from detectron2.data import build_detection_test_loader
 
-from train import get_loop_dicts, get_config
+from detectron2_repo.train import get_loop_dicts, get_config
 
 logger = logging.getLogger("Untangling")
 
@@ -50,7 +50,7 @@ def predict(image, thresh=0.90, endpoints=False):
 
     # evaluate the model
     if endpoints:
-        cfg.MODEL.WEIGHTS = "/home/justin/yumi/detectron2_repo/models/endpoint_model.pth" 
+        cfg.MODEL.WEIGHTS = "/home/mallika/triton4-lip/detectron2_repo/models/endpoint_model.pth" 
     else:
         cfg.MODEL.WEIGHTS = "/home/justin/yumi/detectron2_repo/models/knot_detect_augment.pth" #"/home/justin/yumi/detectron2_repo/models/knot_detect_1.pth"  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1

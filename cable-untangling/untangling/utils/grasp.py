@@ -327,6 +327,7 @@ class GraspSelector:
             rs = r_q if r_q is not None else rs
             if l_q is not None or r_q is not None:
                 new_g.append(gr)
+        import pdb; pdb.set_trace()
         return new_g
 
     def select_single_grasp(self, grasps, tcp, which_arm='either'):
@@ -475,7 +476,7 @@ if __name__ == '__main__':
     #   "/home/justin/yumi/phoxipy/tools/phoxi_to_world_etch.tf").as_frames(from_frame="phoxi", to_frame="base_link")
     # T_CAM_BASE = RigidTransform.load(
     #    "phoxi_to_world_bww.tf").as_frames(from_frame="phoxi", to_frame="base_link")
-    T_CAME_BASE = RigidTransform.load(
+    T_CAM_BASE = RigidTransform.load(
         "/home/mallika/triton4/phoxipy/tools/phoxi_to_world_bww.tf").as_frames(from_frame="phoxi", to_frame="base_link")
     #T_CAM_BASE = RigidTransform.load("/nfs/diskstation/calib/phoxi/phoxi_to_world.tf").as_frames(from_frame="phoxi",to_frame="base_link")
     intr = PhoXiSensor.create_intr(img.width, img.height)

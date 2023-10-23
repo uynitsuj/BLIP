@@ -1,0 +1,2 @@
+2023-09-19 18:32:16.644 Warning: Unknown error in API call response
+2023-09-19 18:32:16.644 Method wrapper for command GetDeviceList error: error

@@ -385,5 +385,5 @@ def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_
         logger.info(f"Bounding box ({max_y - min_y} x {max_x - min_x}) around ending points is too large, UNCERTAIN.")
         return None, finished_paths
     else:
-        logger.info("Certain trace result.")
+        logger.info("Certain analytic trace result.")
         return finished_paths[0], finished_paths

@@ -2,7 +2,7 @@
 from codecs import IncrementalDecoder
 from pickle import FALSE
 from turtle import done, left
-# import analysis as loop_detectron
+from detectron2_repo import analysis as loop_detectron
 from untangling.utils.grasp import GraspSelector, GraspException
 from untangling.utils.interface_rws import Interface
 from autolab_core import RigidTransform, RgbdImage, DepthImage, ColorImage
@@ -36,38 +36,54 @@ from untangling.tracer_knot_detect.tracer import TraceEnd
 
 torch.cuda.empty_cache()
 
+def check_path(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
 class FullPipeline():
     def __init__(self, viz, loglevel, topdown_grasp=False, initialize_iface=True):
         self.time_limit = 15 * 60
-        SPEED = (0.6, 2 * np.pi) #(0.6, 6 * np.pi)
+        self.SPEED = (0.4, 6 * np.pi) #(0.6, 6 * np.pi)
         self.iface = None
         if initialize_iface:
             self.iface = Interface(
                 "1703005",
                 ABB_WHITE.as_frames(YK.l_tcp_frame, YK.l_tip_frame),
                 ABB_WHITE.as_frames(YK.r_tcp_frame, YK.r_tip_frame),
-                speed=SPEED,
+                speed=self.SPEED,
             )
 
         self.total_obs = 0
-        self.image_save_path = '/home/justin/yumi/cable-untangling/scripts/live_rollout_RSS2023'
-        self.start_images = '/home/justin/yumi/cable-untangling/scripts/start_states'
+        self.image_save_path = './cable-untangling/scripts/live_rollout_RSS2023'
+        self.start_images = './cable-untangling/scripts/start_states'
+
+        check_path(self.image_save_path)
+        check_path(self.start_images)
+
         self.viz = viz
         self.alg_output_fig = 'alg_output.png'
         self.img_count = 0
-        self.img_folder = 'full_pipeline_fig/run4'
+        self.img_folder = 'full_pipeline_fig/test_detector'
+
+        check_path(self.img_folder)
+
         logging.root.setLevel(loglevel)
         logging.basicConfig(level=loglevel)
         self.logger = logging.getLogger("Untangling")
         date_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        # logs_file_name = f'/home/justin/yumi/cable-untangling/scripts/full_rollouts/logs_{date_time}.txt'
-        # self.logs_file = open(logs_file_name, 'w')
+        
+        logs_file_name = f'./cable-untangling/scripts/full_rollouts/logs_{date_time}.txt'
+        print(os.path.dirname(logs_file_name))
+        check_path(os.path.dirname(logs_file_name))
+
+        self.logs_file = open(logs_file_name, 'w')
         self.topdown_grasps = topdown_grasp
         self.tkd = TracerKnotDetector()
         self.action_count = 0
         self.g = None
         self.img = None
         self.endpoints = None
+        self.grasppoint = None
         self.start_time = 0
 
         self.img_dims = np.array([772, 1032])
@@ -128,6 +144,7 @@ class FullPipeline():
 
     def get_endpoints(self):
         # model not used, already specified in loop_detectron
+        self.img = self.iface.take_image()
         endpoint_boxes, out_viz = loop_detectron.predict(self.img.color._data, thresh=0.99, endpoints=True)
         plt.clf()
         plt.imshow(out_viz)
@@ -158,10 +175,26 @@ class FullPipeline():
         # endpoint2 = endpoints[1][0]
         self.endpoints = endpoints[:, 0, :] #np.array([endpoint1, endpoint2])
 
-    def get_endpoints_from_clicks(self):
-        endpoint_1, endpoint_2= click_points_simple(self.img) 
-        self.endpoints = np.array([endpoint_1[::-1], endpoint_2[::-1]])
+    # can click 1 grasp point
+    def get_single_grasp_from_click(self, take_image=True):
+        if take_image:
+            self.img = self.iface.take_image()
+        grasppoint= click_points_simple(self.img) 
+        if grasppoint is not None:
+            self.grasppoint = grasppoint
+            print(self.grasppoint)
 
+    # can click 1 or 2 endpoints
+    def get_endpoints_from_clicks(self, take_image=True):
+        if take_image:
+            self.img = self.iface.take_image()
+        endpoint_1, endpoint_2= click_points_simple(self.img) 
+        if endpoint_1 is not None and endpoint_2 is not None:
+            self.endpoints = np.array([endpoint_1[::-1], endpoint_2[::-1]])
+        elif endpoint_1 is not None:
+            self.endpoints = np.array([endpoint_1[::-1]])
+        else:
+            self.endpoints = np.array([endpoint_2[::-1]])
 
     def get_grasp_points_from_endpoint(self, endpoint):
         # trace from endpoint on image
@@ -253,16 +286,21 @@ class FullPipeline():
         plt.scatter(*endpt1)
         plt.scatter(*endpt2)
         plt.imshow(self.img.color._data * self.overall_reachability_mask[:, :, None])
-        self.show_img()
+        plt.show()
+        # self.show_img()
         # endpoints_tuples = endpoints
         self.iface.home()
         self.iface.sync()
         
-        l_grasp,r_grasp=g.double_grasp(endpt1,endpt2,.0085,.0085,self.iface.L_TCP,self.iface.R_TCP,slide0=on_endpt1, slide1=on_endpt2) #0.005 each
+        # change by m - making double grasp different
+        # l_grasp,r_grasp=g.double_grasp(endpt1,endpt2,.0085,.0085,self.iface.L_TCP,self.iface.R_TCP,slide0=on_endpt1, slide1=on_endpt2) #0.005 each
+        l_grasp, r_grasp = g.double_grasp(endpt1,endpt2, 0.01, 0.01, self.iface.L_TCP, self.iface.R_TCP, slide0=True, slide1=True)
         #TODO: REMOVE THIS FROM INFO ONCE DEBUGGED
         logging.info(f"l_grasp: {l_grasp.pose.translation}")
         logging.info(f"r_grasp: {r_grasp.pose.translation}")
         l_grasp.pregrasp_dist, r_grasp.pregrasp_dist = 0.05, 0.05
+        self.iface.open_grippers()
+        #self.iface.sync()
         self.iface.grasp(l_grasp=l_grasp,r_grasp=r_grasp,topdown=self.topdown_grasps,reid_grasp=True)
         self.iface.set_speed((.4,5))
 
@@ -277,7 +315,7 @@ class FullPipeline():
                 # plt.scatter(*clear_point[::-1])
                 # plt.show()
                 clear_point = g.ij_to_point(clear_point[::-1]).data
-                clear_point[2] = 0.1
+                clear_point[2] = 0.07 # CHANGE HERE: 0.1 --> 0.07
             except Exception as e:
                 raise e
                 clear_point = None
@@ -290,7 +328,7 @@ class FullPipeline():
             color_img = self.img.color._data
             color_img = np.array(color_img, dtype=np.uint8)[:, :, 0]
 
-            default_right_pose = [0.35, 0.15, 0.1]
+            default_right_pose = [0.35, 0.15, 0.13] # CHANGE HERE: 0.1 --> 0.13
             clear_point_right_arm = get_clear_area(color_img, side='left')
             clear_point_right_arm = default_right_pose if clear_point_right_arm is None else clear_point_right_arm
             if np.linalg.norm(np.array(default_right_pose) - np.array(clear_point_right_arm)) > 0.2:
@@ -320,10 +358,148 @@ class FullPipeline():
 
             self.img = self.take_and_save_image()
             color_img = self.img.color._data
-            default_left_pose = [0.35, -0.15, 0.1]
+            default_left_pose = [0.35, -0.15, 0.13] # CHANGE HERE: 0.1 --> 0.13
             color_img = self.img.color._data
             color_img = np.array(color_img, dtype=np.uint8)[:, :, 0]
             clear_point_left_arm = get_clear_area(color_img, side='right')
+            clear_point_left_arm = default_left_pose if clear_point_left_arm is None else clear_point_left_arm
+            if np.linalg.norm(np.array(default_left_pose) - np.array(clear_point_left_arm)) > 0.2:
+                clear_point_left_arm = default_left_pose
+
+            lp = RigidTransform(
+                translation=clear_point_left_arm,
+                rotation=self.iface.GRIP_DOWN_R,
+                from_frame=YK.l_tcp_frame,
+                to_frame="base_link",
+            )
+
+            try:
+                self.iface.go_cartesian(
+                    l_targets=[lp]
+                )
+            except:
+                self.logger.debug("Couldn't compute smooth cartesian path, falling back to planner")
+                self.iface.go_pose_plan(l_target=lp)
+            self.iface.sync()
+            self.iface.release_cable("left")
+            self.iface.sync()
+            self.iface.go_config_plan(l_q=self.iface.L_HOME_STATE)
+            self.iface.sync()
+        self.iface.pull_apart(0.6, slide_left=False, slide_right=False, return_to_center=False)
+        self.iface.sync()
+        
+        # lift up
+        cur_left_pos = self.iface.y.left.get_joints()
+        cur_right_pos = self.iface.y.right.get_joints()
+        OUT_POS_2_L = np.array([-0.80388363, -0.77492968, -1.30770091, -0.73786254,  2.85080849, 0.79577677,  2.01228079])
+        OUT_POS_2_R = l_to_r(OUT_POS_2_L)
+        OUT_POS_2_R[6] = cur_right_pos[6]
+        self.iface.go_configs(l_q=[OUT_POS_2_L], r_q=[OUT_POS_2_R])
+        self.iface.sync()
+        # time.sleep(5)
+        return_to_center()
+        self.iface.sync()
+        self.iface.open_grippers()
+        self.iface.home()
+        self.iface.sync()
+
+    
+    def pull_apart(self):
+        '''
+        Pull apart 0.3m, and while detectron detects no knots, keep pulling apart by specified increments 
+        until knot detected or ceiling=0.6m reached. 
+        
+        Tilt not implemented because regrasping should take care of it.
+        '''
+        self.get_endpoints()
+        MAX_DISTANCE = 0.5
+        g = GraspSelector(self.img, self.iface.cam.intrinsics, self.iface.T_PHOXI_BASE,grabbing_endpoint=True)
+
+        endpt1, on_endpt1 = self.get_grasp_points_from_endpoint(self.endpoints[0])
+        endpt2, on_endpt2 = self.get_grasp_points_from_endpoint(self.endpoints[1])
+        endpt1 = endpt1[::-1]
+        endpt2 = endpt2[::-1]
+
+        plt.clf()
+        plt.scatter(*endpt1)
+        plt.scatter(*endpt2)
+        plt.imshow(self.img.color._data * self.overall_reachability_mask[:, :, None])
+        plt.show()
+        # self.show_img()
+        # endpoints_tuples = endpoints
+        self.iface.home()
+        self.iface.sync()
+        
+        # change by m - making double grasp different
+        # l_grasp,r_grasp=g.double_grasp(endpt1,endpt2,.0085,.0085,self.iface.L_TCP,self.iface.R_TCP,slide0=on_endpt1, slide1=on_endpt2) #0.005 each
+        l_grasp, r_grasp = g.double_grasp(endpt1,endpt2, 0.01, 0.01, self.iface.L_TCP, self.iface.R_TCP, slide0=True, slide1=True)
+        #TODO: REMOVE THIS FROM INFO ONCE DEBUGGED
+        logging.info(f"l_grasp: {l_grasp.pose.translation}")
+        logging.info(f"r_grasp: {r_grasp.pose.translation}")
+        l_grasp.pregrasp_dist, r_grasp.pregrasp_dist = 0.05, 0.05
+        self.iface.open_grippers()
+        #self.iface.sync()
+        self.iface.grasp(l_grasp=l_grasp,r_grasp=r_grasp,topdown=self.topdown_grasps,reid_grasp=True)
+        self.iface.set_speed((.4,5))
+
+        def l_to_r(config):
+                return np.array([-1, 1, -1, 1, -1, 1, 1]) * config
+
+        def get_clear_area(img, side='left'):
+            try:
+                g = GraspSelector(self.img, self.iface.cam.intrinsics, self.iface.T_PHOXI_BASE,grabbing_endpoint=True)
+                clear_point = self.find_clear_area(img, side=side)
+                # plt.imshow(self.img._data[..., :3].astype(np.uint8))
+                # plt.scatter(*clear_point[::-1])
+                # plt.show()
+                clear_point = g.ij_to_point(clear_point[::-1]).data
+                clear_point[2] = 0.07 # CHANGE HERE: 0.1 --> 0.07
+            except Exception as e:
+                raise e
+                clear_point = None
+            return clear_point
+
+        def return_to_center():
+            self.iface.home()
+            self.iface.sync()
+            self.img = self.take_and_save_image()
+            color_img = self.img.color._data
+            color_img = np.array(color_img, dtype=np.uint8)[:, :, 0]
+
+            default_right_pose = [0.35, -0.15, 0.13] # CHANGE HERE: 0.1 --> 0.13
+            clear_point_right_arm = get_clear_area(color_img, side='right')
+            clear_point_right_arm = default_right_pose if clear_point_right_arm is None else clear_point_right_arm
+            if np.linalg.norm(np.array(default_right_pose) - np.array(clear_point_right_arm)) > 0.2:
+                clear_point_right_arm = default_right_pose
+            rp = RigidTransform(
+                translation=clear_point_right_arm,
+                rotation=self.iface.GRIP_DOWN_R,  # 0.1 0.2
+                from_frame=YK.r_tcp_frame,
+                to_frame="base_link",
+            )
+
+            self.iface.home()
+            self.iface.sync()
+            try:
+                self.iface.go_cartesian(
+                    r_targets=[rp]
+                )
+            except:
+                self.logger.debug("Couldn't compute smooth cartesian path, falling back to planner")
+                self.iface.go_pose_plan(r_target=rp)
+            self.iface.sync()
+            self.iface.release_cable("right")
+            self.iface.sync()
+            self.iface.go_config_plan(r_q=self.iface.R_HOME_STATE)
+            self.iface.sync()
+            time.sleep(1)
+
+            self.img = self.take_and_save_image()
+            color_img = self.img.color._data
+            default_left_pose = [0.35, 0.15, 0.13] # CHANGE HERE: 0.1 --> 0.13
+            color_img = self.img.color._data
+            color_img = np.array(color_img, dtype=np.uint8)[:, :, 0]
+            clear_point_left_arm = get_clear_area(color_img, side='left')
             clear_point_left_arm = default_left_pose if clear_point_left_arm is None else clear_point_left_arm
             if np.linalg.norm(np.array(default_left_pose) - np.array(clear_point_left_arm)) > 0.2:
                 clear_point_left_arm = default_left_pose

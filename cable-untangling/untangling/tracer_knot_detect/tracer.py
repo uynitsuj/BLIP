@@ -17,6 +17,7 @@ from enum import Enum
 from untangling.tracer_knot_detect.src.model import ClassificationModel, KeypointsGauss # Uncomment for triton4
 from untangling.tracer_knot_detect.config import * # Uncomment for triton4
 from cable_tracing.tracers import simple_uncertain_trace_single
+from tusk_pipeline.tracer import TraceEnd
 
 # sys.path.insert(0, '..') # Uncomment for bajcsy
 # from src.model import ClassificationModel, KeypointsGauss # Uncomment for bajcsy
@@ -25,11 +26,6 @@ from cable_tracing.tracers import simple_uncertain_trace_single
 use_cuda = torch.cuda.is_available()
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-class TraceEnd(Enum):
-    EDGE = 1
-    ENDPOINT = 2
-    FINISHED = 3
-    RETRACE = 4
 
 class Tracer:
 
@@ -351,18 +347,35 @@ class Tracer:
                 plt.imsave(f'trace_test/disp_img_{iter}.png', disp_img)
                 
             if len(path) > 30:
+                # import pdb; pdb.set_trace()
                 p = np.array(path)
                 recent_points = p[-15:]
                 closests = []
                 # import pdb; pdb.set_trace()
                 for point in recent_points:
                     distances = np.linalg.norm(p[:-15] - np.expand_dims(point, axis=0), axis=-1)
+                    # closest is an index
                     closest = np.argmin(distances)
                     dist = distances[closest]
-                    if dist < 6:
+                    # print("dist", dist)
+                    # m change - lower threshold cause thicker rope
+                    # if dist < 6:
+                    if dist < 8:
                         closests.append(closest)
-                if len(closests) > 10 and (np.max(closests) - np.min(closests)) < 20:
-                    return path, TraceEnd.RETRACE
+                        # plt.scatter(p[closest][1], p[closest][0], c='r')
+                        # plt.imshow(image)
+                        # plt.show()
+
+                # m changes
+                # making sure max - min < 20 is not good bc it could be close to a crossing from the past but also a retrace
+                # also cut out the closest points that we think are retrace
+                # if len(closests) > 10 and (np.max(closests) - np.min(closests)) < 20:
+                #     return path, TraceEnd.RETRACE
+                
+
+                if len(closests) > 5:
+                    return path[:-len(closests)], TraceEnd.RETRACE
+                
                 # for i in range(0, len(path)-30):
                 #     diff = np.mean(np.linalg.norm(p[i:i+15] - p[-15:], axis=-1)) #np.mean(
                 #     diffrev = np.mean(np.linalg.norm(p[i:i+15] - p[-15:][::-1], axis=-1)) #np.mean(
@@ -396,6 +409,8 @@ class Tracer:
         img_cp = (img.copy() * 255.0).astype(np.uint8)
         trace_viz = self.visualize_path(img_cp, spline.copy())
         plt.imsave(f'./test_tkd/trace_{self.idx}.png', trace_viz)
+        plt.imshow(trace_viz)
+        plt.show()
         self.idx += 1
         return np.array(spline), trace_end
 
