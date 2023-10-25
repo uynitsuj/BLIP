@@ -5,6 +5,7 @@ import numpy as np
 from untangling.utils.interface_rws import Interface
 from untangling.utils.tcps import *
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from untangling.utils.grasp import GraspSelector
 import time
 from autolab_core import RigidTransform, Point, RgbdImage, DepthImage, ColorImage
@@ -19,7 +20,8 @@ import colorsys
 
 DIST_TO_TABLE_LEFT = 1.025 # meters
 DIST_TO_TABLE_RIGHT = 0.99 # meters
-T_CAM_BASE = RigidTransform.load("/home/mallika/triton4-lip/phoxipy/tools/phoxi_to_world_bww.tf").as_frames(from_frame="phoxi", to_frame="base_link")
+
+T_CAM_BASE = RigidTransform.load("/home/mallika/triton4-lip/phoxipy/tools/arducam_to_world_bww.tf").as_frames(from_frame="arducam", to_frame="base_link")
 
 Z_OFFSET = 1.4e-3
 
@@ -31,7 +33,7 @@ def get_world_coord_from_pixel_coord(pixel_coord, cam_intrinsics):
     height_samples = [0.043108, 0.041911, 0.0420478, 0.04362216]
 
     pixel_coord = np.array(pixel_coord)
-    point_3d_cam = np.linalg.inv(cam_intrinsics._K).dot(np.r_[pixel_coord, 1.0])
+    point_3d_cam = np.linalg.inv(cam_intrinsics).dot(np.r_[pixel_coord, 1.0])
     # print(T_CAM_BASE.matrix)
     # PHOXI_TO_WORLD = np.eye(4)
     # PHOXI_TO_WORLD[:3,:3] = np.array([[0,-1,0],[-1,0,0],[0,0,-1]])
@@ -42,7 +44,8 @@ def get_world_coord_from_pixel_coord(pixel_coord, cam_intrinsics):
     # print(point_3d_world)
     point_3d_world = point_3d_world[:3]/point_3d_world[3]
     # print(point_3d_world)
-    point_3d_world[-1] = np.mean(height_samples)
+    # point_3d_world[-1] = np.mean(height_samples)
+    point_3d_world[-1] = np.mean(height_samples)+.008
     print('non-homogenous = ', point_3d_world)
     return point_3d_world
 
@@ -78,12 +81,28 @@ def get_closest_trace_idx(pix, trace):
     distances = np.linalg.norm(np.array(trace) - np.array(pix)[None, ...], axis=1)
     return np.argmin(distances)
 
-def is_valid_cc(cc_stats, cc_labels, cc):
-    # print(cc_stats[cc][4])
-    return is_large_cc(cc_stats, cc) and cc > 0
+def is_valid_cc(cc_stats, cc_labels, cc, radius=25):
+    if cc == 0:
+        return False
+    center = (cc_labels.shape[0] // 2, cc_labels.shape[1] // 2)
+    mask = (cc_labels == cc).astype(np.uint8)
+
+    component_pixels = np.column_stack(np.where(mask == 1))
+
+    touching_center = any(np.linalg.norm(np.array(pixel) - np.array(center)) <= radius for pixel in component_pixels)
+    # fig, ax = plt.subplots()
+    # # Display the binary image
+    # print(touching_center)
+    # circle = patches.Circle((cc_labels.shape[0]/2, cc_labels.shape[0]/2), radius=radius, edgecolor='red', facecolor='none')
+    # ax.add_patch(circle)
+    # # plt.imshow(cc_labels)
+
+    # ax.imshow(mask)
+    # plt.show()
+    return is_large_cc(cc_stats, cc) and touching_center
 
 def is_large_cc(cc_stats, cc):
-    return cc_stats[cc][4] > 300 # minimum cc pixel area of 1000 may be tuned
+    return cc_stats[cc][4] > 400 # minimum cc pixel area of 1000 may be tuned
 
 # checks that the CC doesn't go from one end of the image to the other
 def not_touching_both_ends_cc(cc_lables, cc):
@@ -191,7 +210,7 @@ def get_poi_and_vec_for_push(push_coord, img_rgb, trace, place_box_img_W=150, ed
     for label in range(num_labels):
         if is_valid_cc(stats, labels, label): # minimum cc pixel area of 1000 may be tuned
             center_point = get_pole(labels=labels, label = label)
-            plt.title("Per-Region Poles of Inaccessibility")
+            plt.title("Per-Region Candidates")
 
             plt.scatter(center_point[0],center_point[1])
             pointerest_center_vec = (np.array(center_point) - poi_cropped)/np.linalg.norm(np.array(center_point) - poi_cropped)
@@ -202,6 +221,14 @@ def get_poi_and_vec_for_push(push_coord, img_rgb, trace, place_box_img_W=150, ed
             candidate_pts.append(center_point)
 
     if viz:
+        fig, ax = plt.subplots()
+
+        # Display the binary image
+        # ax.imshow(img, cmap='gray')
+
+        # Plot a circle centered at (0,0) with radius 50
+        circle = patches.Circle((labels.shape[0]/2, labels.shape[1]/2), radius=25, edgecolor='red', facecolor='none')
+        ax.add_patch(circle)
         plt.imshow(labels)
         plt.show()
 
@@ -416,7 +443,7 @@ def perform_push_through(poi_trace, cen_poi_vec, img, fullPipeline, viz=False, p
     average_place = (np.array(waypoint1) + np.array(waypoint2))/2
     fixed_depth = 0.0419
     #fixed_depth = 0.0935
-    if average_place[0] > 590:
+    if poi_trace[0] > 590:
         place1 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
         place2 = get_world_coord_from_pixel_coord(waypoint2, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
         place1 = [place1[0], place1[1], fixed_depth]
@@ -460,15 +487,6 @@ def perform_push_through(poi_trace, cen_poi_vec, img, fullPipeline, viz=False, p
         )
         iface.go_cartesian(r_targets=[intermediate_place1_transform, place1_transform, place2_transform, intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
         iface.sync()
-
-        # iface.go_cartesian(r_targets=[place1_transform], removejumps=[6])
-        # iface.sync()
-
-        # iface.go_cartesian(r_targets=[place2_transform], removejumps=[6])
-        # iface.sync()
-
-        # iface.go_cartesian(r_targets=[intermediate_place2_transform], removejumps=[6])
-        # iface.sync()
 
     else:
         place1 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
@@ -516,186 +534,15 @@ def perform_push_through(poi_trace, cen_poi_vec, img, fullPipeline, viz=False, p
         iface.go_cartesian(l_targets=[intermediate_place1_transform, place1_transform, place2_transform, intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
         iface.sync()
 
-        # iface.go_cartesian(l_targets=[place1_transform], removejumps=[6])
-        # iface.sync()
-
-        # iface.go_cartesian(l_targets=[place2_transform], removejumps=[6])
-        # iface.sync()
-
-        # iface.go_cartesian(l_targets=[intermediate_place2_transform], removejumps=[6])
-        # iface.sync()
-
     if pin_arm is not None:
-        time.sleep(1)
         iface.open_gripper(pin_arm)
         iface.sync()
     
     iface.home()
     iface.sync()
-    time.sleep(1)
     iface.close_grippers()
     iface.sync()
     time.sleep(1)
-
-def perform_push_through2(poi_trace, cen_poi_vec, img, fullPipeline, viz=True):
-    
-    waypoint1 = np.array([poi_trace[0], poi_trace[1]]) + cen_poi_vec
-    waypoint2 = np.array([poi_trace[0], poi_trace[1]]) - cen_poi_vec*0.65
-
-
-    # if viz:
-    #     plt.text(waypoint1[0]+7,waypoint1[1]+7, 'pt 1')
-    #     plt.text(waypoint2[0]+7,waypoint2[1]+7, 'pt 2')
-    #     plt.scatter(waypoint1[0],waypoint1[1])
-    #     plt.scatter(waypoint2[0],waypoint2[1])
-    #     plt.imshow(img.color._data)
-    #     plt.show()
-
-    waypoint1 = [int(waypoint1[0]), int(waypoint1[1])]
-    waypoint2 = [int(waypoint2[0]), int(waypoint2[1])]
-
-    if viz:
-        plt.text(waypoint1[0]+7,waypoint1[1]+7, 'pt 1')
-        plt.text(waypoint2[0]+7,waypoint2[1]+7, 'pt 2')
-        plt.scatter(waypoint1[0],waypoint1[1])
-        plt.scatter(waypoint2[0],waypoint2[1])
-        plt.imshow(img.color._data)
-        plt.show()
-
-    iface = fullPipeline.iface
-    iface.close_grippers()
-    iface.sync()
-    g = GraspSelector(img, iface.cam.intrinsics, iface.T_PHOXI_BASE) # initialize grasp selector with image, camera intrinsics, and camera transform calibrated to the phoxi
-
-    waypoint1 = [int(waypoint1[0]), int(waypoint1[1])]
-    waypoint2 = [int(waypoint2[0]), int(waypoint2[1])]
-
-    print('waypoint1: ', waypoint1)
-    print('waypoint2: ', waypoint2)
-    ## WORLD COORDINATE ESTIMATION WITH DEPTH
-    # place1 = g.ij_to_point(waypoint1).data # convert pixel coordinates to 3d coordinates
-    # place2 = g.ij_to_point(waypoint2).data # convert pixel coordinates to 3d coordinates
-    # print('with depth calculation: ')
-    # print(place1)
-    # print(place2)
-    ## WORLD COORDINATE ESTIMATION WITHOUT DEPTH
-    place1 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
-    place2 = get_world_coord_from_pixel_coord(waypoint2, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
-    # print('without depth calculation: ')
-    # print(place1)
-    # print(place2)
-
-    average_place = (np.array(waypoint1) + np.array(waypoint2))/2
-    fixed_depth = 0.0408
-    if average_place[0] > 590:
-        print('waypoint1 again: ', waypoint1)
-        print('waypoint2 again: ', waypoint2)
-        place1 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
-        place2 = get_world_coord_from_pixel_coord(waypoint2, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
-        intermediate_place1 = place1 + np.array([0, 0, 0.1])
-        intermediate_place2 = place2 + np.array([0, 0, 0.1])
-        # place1 = [place1[0], place1[1], fixed_depth]
-        # place2 = [place2[0], place2[1], fixed_depth]
-        # print('without depth calculation: ')
-        print(place1)
-        print(place2)
-        # right arm
-        intermediate_place1_transform = RigidTransform(
-            translation=intermediate_place1,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.r_tcp_frame,
-            to_frame="base_link",
-        )
-        intermediate_place2_transform = RigidTransform(
-            translation=intermediate_place2,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.r_tcp_frame,
-            to_frame="base_link",
-        )
-
-        place1_transform = RigidTransform(
-            translation=place1,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.r_tcp_frame,
-            to_frame="base_link",
-        )
-        place2_transform = RigidTransform(
-            translation=place2,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.r_tcp_frame,
-            to_frame="base_link",
-        )
-        try:
-            iface.go_cartesian(r_targets=[intermediate_place1_transform], removejumps=[6])
-            iface.sync()
-
-            iface.go_cartesian(r_targets=[place1_transform], removejumps=[6])
-            iface.sync()
-
-            iface.go_cartesian(r_targets=[place2_transform], removejumps=[6])
-            iface.sync()
-
-            iface.go_cartesian(r_targets=[intermediate_place2_transform], removejumps=[6])
-            iface.sync()
-        except RuntimeError:
-            print("stuck?") 
-    else:
-        # left arm
-        place1 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
-        place2 = get_world_coord_from_pixel_coord(waypoint2, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
-        intermediate_place1 = place1 + np.array([0, 0, 0.1])
-        intermediate_place2 = place2 + np.array([0, 0, 0.1])
-        # place1 = [place1[0], place1[1], fixed_depth]
-        # place2 = [place2[0], place2[1], fixed_depth]
-        # print('without depth calculation: ')
-        print(place1)
-        print(place2)
-        
-        intermediate_place1_transform = RigidTransform(
-            translation=intermediate_place1,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.l_tcp_frame,
-            to_frame="base_link",
-        )
-        intermediate_place2_transform = RigidTransform(
-            translation=intermediate_place2,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.l_tcp_frame,
-            to_frame="base_link",
-        )
-
-
-        place1_transform = RigidTransform(
-            translation=place1,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.l_tcp_frame,
-            to_frame="base_link",
-        )
-        place2_transform = RigidTransform(
-            translation=place2,
-            rotation= iface.GRIP_DOWN_R,
-            from_frame=YK.l_tcp_frame,
-            to_frame="base_link",
-        )
-        try:
-            iface.go_cartesian(l_targets=[intermediate_place1_transform], removejumps=[6])
-            iface.sync()
-
-            iface.go_cartesian(l_targets=[place1_transform], removejumps=[6])
-            iface.sync()
-
-            iface.go_cartesian(l_targets=[place2_transform], removejumps=[6])
-            iface.sync()
-
-            iface.go_cartesian(l_targets=[intermediate_place2_transform], removejumps=[6])
-            iface.sync()
-        except RuntimeError:
-            print("stuck?")
-
-
-    iface.home()
-    iface.sync()
-    time.sleep(2)
 
 if __name__ == "__main__":
  

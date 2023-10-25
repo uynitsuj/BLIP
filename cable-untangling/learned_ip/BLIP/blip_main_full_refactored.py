@@ -105,6 +105,13 @@ def choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_r
             old_endpts = np.array(prev_endpoints)
             new_endpts = np.array(fullPipeline.endpoints)
             old_indices, new_indices = get_matching(old_endpts, new_endpts, viz=False)
+
+            if len(list(range(old_endpts.shape[0])) - old_indices) > 0:
+                missing_idx = list(range(old_endpts.shape[0])) - old_indices
+                missing_endpt = old_endpts[missing_idx]
+                ## PERFORM IP MOVE IN LOCATION OF MISSING ENDPOINT
+
+
             print("Old indices:", old_indices)
             print("New indices:", new_indices)
             if prev_endpoint_idx not in new_indices:
