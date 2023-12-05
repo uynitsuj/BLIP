@@ -1,1 +1,6 @@
 12:52:48 Level 25 IP Moves Executed: 0
+12:54:25 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_12-52-47/images/trace2023-12-05_12-53-51.png
+12:54:25 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_12-52-47/traces/trace_coords2023-12-05_12-53-51.png
+12:54:25 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_12-52-47/traces/endpoints2023-12-05_12-53-51.png
+12:54:25 Level 25 Executing Cable Endpoint Verification (CEV-IP)
+12:54:37 WARNING  Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).

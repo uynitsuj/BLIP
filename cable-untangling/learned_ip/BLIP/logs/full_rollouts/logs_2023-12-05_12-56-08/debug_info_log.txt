@@ -1,0 +1,10 @@
+12:56:09 Level 25 IP Moves Executed: 0
+12:56:29 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_12-56-08/images/trace2023-12-05_12-56-27.png
+12:56:29 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_12-56-08/traces/trace_coords2023-12-05_12-56-27.png
+12:56:29 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_12-56-08/traces/endpoints2023-12-05_12-56-27.png
+12:56:29 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+12:56:52 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_12-56-08/images/trace2023-12-05_12-56-49.png
+12:56:52 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_12-56-08/traces/trace_coords2023-12-05_12-56-49.png
+12:56:52 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_12-56-08/traces/endpoints2023-12-05_12-56-49.png
+12:56:52 Level 25 Trace altered or trace moved off endpoint
+12:56:52 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)

@@ -507,23 +507,27 @@ def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_
         logging.warning("No paths made it to any bounding box.")
         return None, []
 
-    min_x = np.min(np.array([p[0] for p in ending_points]))
-    max_x = np.max(np.array([p[0] for p in ending_points]))
-    min_y = np.min(np.array([p[1] for p in ending_points]))
-    max_y = np.max(np.array([p[1] for p in ending_points]))
-    if (max_y - min_y > 24 or max_x - min_x > 24) and not exact_path_len or \
-        (max_y - min_y > 12 or max_x - min_x > 12) and exact_path_len:
-        print(f"Bounding box ({max_y - min_y} x {max_x - min_x}) around ending points is too large, UNCERTAIN.")
-        logger.info(f"Bounding box ({max_y - min_y} x {max_x - min_x}) around ending points is too large, UNCERTAIN.")
+    # min_x = np.min(np.array([p[0] for p in ending_points]))
+    # max_x = np.max(np.array([p[0] for p in ending_points]))
+    # min_y = np.min(np.array([p[1] for p in ending_points]))
+    # max_y = np.max(np.array([p[1] for p in ending_points]))
+    # if (max_y - min_y > 24 or max_x - min_x > 24) and not exact_path_len or \
+    #     (max_y - min_y > 12 or max_x - min_x > 12) and exact_path_len:
+    #     print(f"Bounding box ({max_y - min_y} x {max_x - min_x}) around ending points is too large, UNCERTAIN.")
+    #     logger.info(f"Bounding box ({max_y - min_y} x {max_x - min_x}) around ending points is too large, UNCERTAIN.")
 
-        plt.imshow(image)
-        plt.scatter(max_y, max_x, c='r')
-        plt.scatter(min_y, min_x, c='r')
+    #     plt.imshow(image)
+    #     plt.scatter(max_y, max_x, c='r')
+    #     plt.scatter(min_y, min_x, c='r')
         
-        plt.show()
+    #     plt.show()
 
-        return None, finished_paths
-    else:
-        print("Certain analytic trace result.")
-        logger.info("Certain analytic trace result.")
-        return finished_paths[0], finished_paths
+    #     return None, finished_paths
+    # else:
+    #     print("Certain analytic trace result.")
+    #     logger.info("Certain analytic trace result.")
+    #     return finished_paths[0], finished_paths
+
+    print("Certain analytic trace result.")
+    logger.info("Certain analytic trace result.")
+    return finished_paths[0], finished_paths
