@@ -1,0 +1,2 @@
+20:29:51 Level 25 IP Moves Executed: 0
+20:30:00 WARNING  No paths made it to any bounding box.

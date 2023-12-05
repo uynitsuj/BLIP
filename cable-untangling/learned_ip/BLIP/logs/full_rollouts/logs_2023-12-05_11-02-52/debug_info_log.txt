@@ -1,0 +1,25 @@
+11:02:53 Level 25 IP Moves Executed: 0
+11:03:50 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/images/trace2023-12-05_11-03-45.png
+11:03:50 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/trace_coords2023-12-05_11-03-45.png
+11:03:50 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/endpoints2023-12-05_11-03-45.png
+11:03:50 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+11:04:22 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/images/trace2023-12-05_11-04-15.png
+11:04:22 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/trace_coords2023-12-05_11-04-15.png
+11:04:22 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/endpoints2023-12-05_11-04-15.png
+11:04:22 Level 25 Trace altered or trace moved off endpoint
+11:04:22 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+11:04:51 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/images/trace2023-12-05_11-04-45.png
+11:04:51 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/trace_coords2023-12-05_11-04-45.png
+11:04:51 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/endpoints2023-12-05_11-04-45.png
+11:04:51 Level 25 Trace altered or trace moved off endpoint
+11:04:51 Level 25 Executing Cable Endpoint Verification (CEV-IP)
+11:05:13 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/images/trace2023-12-05_11-05-09.png
+11:05:13 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/trace_coords2023-12-05_11-05-09.png
+11:05:13 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_11-02-52/traces/endpoints2023-12-05_11-05-09.png
+11:05:13 Level 25 IP Moves Executed: 3
+11:05:14 WARNING  No paths made it to any bounding box.
+11:05:14 Level 25 
+******DONE******
+
+11:05:18 Level 25 Start trace length: 47
+11:05:18 Level 25 Final trace length: 48

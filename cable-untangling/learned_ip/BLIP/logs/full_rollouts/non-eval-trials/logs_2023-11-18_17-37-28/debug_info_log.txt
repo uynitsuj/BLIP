@@ -1,0 +1,5 @@
+17:37:30 Level 25 IP Moves Executed: 0
+17:39:25 Level 25 Image saved to ./logs/full_rollouts/logs_2023-11-18_17-37-28/images/trace2023-11-18_17-39-21.png
+17:39:25 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-11-18_17-37-28/traces/trace_coords2023-11-18_17-39-21.png
+17:39:25 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-11-18_17-37-28/traces/endpoints2023-11-18_17-39-21.png
+17:39:25 Level 25 Executing Cable Endpoint Verification (CEV-IP)

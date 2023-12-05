@@ -1,0 +1,9 @@
+15:28:29 Level 25 IP Moves Executed: 0
+15:28:56 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_15-28-28/images/trace2023-10-30_15-28-49.png
+15:28:56 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_15-28-28/traces/trace_coords2023-10-30_15-28-49.png
+15:28:56 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_15-28-28/traces/endpoints2023-10-30_15-28-49.png
+15:28:56 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+15:29:40 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_15-28-28/images/trace2023-10-30_15-29-35.png
+15:29:40 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_15-28-28/traces/trace_coords2023-10-30_15-29-35.png
+15:29:40 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_15-28-28/traces/endpoints2023-10-30_15-29-35.png
+15:29:40 Level 25 Executing Cable Endpoint Verification (CEV-IP)

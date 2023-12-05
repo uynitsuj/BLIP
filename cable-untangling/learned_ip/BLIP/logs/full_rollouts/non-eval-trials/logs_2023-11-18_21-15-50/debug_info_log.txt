@@ -1,0 +1,6 @@
+21:15:51 Level 25 IP Moves Executed: 0
+21:15:58 WARNING  Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+21:16:14 WARNING  Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+21:16:20 WARNING  Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+21:16:39 WARNING  Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+21:16:48 WARNING  Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).

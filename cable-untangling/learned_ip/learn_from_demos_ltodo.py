@@ -4,7 +4,7 @@ from pickle import FALSE
 from turtle import done, left
 # import analysis as loop_detectron
 from untangling.utils.grasp import GraspSelector, GraspException
-from untangling.utils.interface_rws import Interface
+from untangling.utils.interface_rws_BLIP import Interface
 from autolab_core import RigidTransform, RgbdImage, DepthImage, ColorImage
 import numpy as np
 from untangling.utils.tcps import *
@@ -27,7 +27,7 @@ plt.set_loglevel('info')
 # plt.style.use('seaborn-darkgrid')
 from untangling.tracer_knot_detect.tracer_knot_detection import TracerKnotDetector
 from untangling.tracer_knot_detect.tracer import TraceEnd
-from scripts.full_pipeline_trunk import FullPipeline
+from scripts.full_pipeline_trunk_BLIP import FullPipeline
 
 class DemoPipeline(FullPipeline):
     def __init__(self, viz, loglevel, initialize_iface):

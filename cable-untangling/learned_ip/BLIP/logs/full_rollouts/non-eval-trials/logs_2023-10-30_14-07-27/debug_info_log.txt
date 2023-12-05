@@ -1,0 +1,26 @@
+14:07:30 Level 25 IP Moves Executed: 0
+14:07:31 WARNING  PhoXi is already started
+14:08:15 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/images/trace2023-10-30_14-08-12.png
+14:08:15 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/trace_coords2023-10-30_14-08-12.png
+14:08:15 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/endpoints2023-10-30_14-08-12.png
+14:08:15 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+14:08:40 WARNING  PhoXi is already started
+14:08:41 WARNING  PhoXi is already started
+14:08:56 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/images/trace2023-10-30_14-08-53.png
+14:08:56 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/trace_coords2023-10-30_14-08-53.png
+14:08:56 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/endpoints2023-10-30_14-08-53.png
+14:08:56 Level 25 Executing Cable Endpoint Verification (CEV-IP)
+14:09:04 WARNING  PhoXi is already started
+14:09:05 WARNING  PhoXi is already started
+14:09:19 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/images/trace2023-10-30_14-09-14.png
+14:09:19 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/trace_coords2023-10-30_14-09-14.png
+14:09:19 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/endpoints2023-10-30_14-09-14.png
+14:09:19 Level 25 IP Moves Executed: 2
+14:09:19 WARNING  PhoXi is already started
+14:09:19 WARNING  No paths made it to any bounding box.
+14:09:19 Level 25 
+******DONE******
+
+14:09:24 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/images/trace2023-10-30_14-09-22.png
+14:09:24 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/trace_coords2023-10-30_14-09-22.png
+14:09:24 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_14-07-27/traces/endpoints2023-10-30_14-09-22.png

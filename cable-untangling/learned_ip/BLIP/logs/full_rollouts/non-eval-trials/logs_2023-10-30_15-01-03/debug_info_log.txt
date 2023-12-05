@@ -1,0 +1,51 @@
+15:01:04 Level 25 IP Moves Executed: 0
+15:01:28 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/images/trace2023-10-30_15-01-25.png
+15:01:28 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/trace_coords2023-10-30_15-01-25.png
+15:01:28 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/endpoints2023-10-30_15-01-25.png
+15:01:28 Level 25 Executing Retrace Uncertainty Disambiguation (RUG-IP)
+15:02:00 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/images/trace2023-10-30_15-01-55.png
+15:02:00 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/trace_coords2023-10-30_15-01-55.png
+15:02:00 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/endpoints2023-10-30_15-01-55.png
+15:02:00 Level 25 IP Moves Executed: 1
+15:02:01 WARNING  No paths made it to any bounding box.
+15:02:01 Level 25 Executing Retrace Uncertainty Disambiguation (RUG-IP)
+15:02:28 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/images/trace2023-10-30_15-02-23.png
+15:02:28 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/trace_coords2023-10-30_15-02-23.png
+15:02:28 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/endpoints2023-10-30_15-02-23.png
+15:02:28 Level 25 IP Moves Executed: 2
+15:02:28 WARNING  No paths made it to any bounding box.
+15:02:28 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+15:03:08 Level 25 Image saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/images/trace2023-10-30_15-03-05.png
+15:03:08 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/trace_coords2023-10-30_15-03-05.png
+15:03:08 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-10-30_15-01-03/traces/endpoints2023-10-30_15-03-05.png
+15:03:08 Level 25 Executing Cable Endpoint Verification (CEV-IP)
+15:03:10 WARNING  Jump in first 4 joints, aborting
+15:03:10 WARNING  Retrying planning...
+15:03:11 WARNING  Jump in first 4 joints, aborting
+15:03:11 WARNING  Retrying planning...
+15:03:11 WARNING  Jump in first 4 joints, aborting
+15:03:11 WARNING  Retrying planning...
+15:03:11 WARNING  Jump in first 4 joints, aborting
+15:03:11 WARNING  Retrying planning...
+15:03:11 WARNING  Jump in first 4 joints, aborting
+15:03:11 WARNING  Retrying planning...
+15:03:11 WARNING  Jump in first 4 joints, aborting
+15:03:11 WARNING  Retrying planning...
+15:03:12 WARNING  Jump in first 4 joints, aborting
+15:03:12 WARNING  Retrying planning...
+15:03:12 WARNING  Jump in first 4 joints, aborting
+15:03:12 WARNING  Retrying planning...
+15:03:12 WARNING  Jump in first 4 joints, aborting
+15:03:12 WARNING  Retrying planning...
+15:03:12 WARNING  Jump in first 4 joints, aborting
+15:03:12 WARNING  Retrying planning...
+15:03:12 WARNING  Jump in first 4 joints, aborting
+15:03:12 WARNING  Retrying planning...
+15:03:13 WARNING  Jump in first 4 joints, aborting
+15:03:13 WARNING  Retrying planning...
+15:03:13 WARNING  Jump in first 4 joints, aborting
+15:03:13 WARNING  Retrying planning...
+15:03:13 WARNING  unsupported operand type(s) for -: 'NoneType' and 'float'
+15:03:13 WARNING  Retrying planning...
+15:03:13 WARNING  Jump in first 4 joints, aborting
+15:03:13 WARNING  Retrying planning...

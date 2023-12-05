@@ -15,7 +15,7 @@ sys.path.append('/home/mallika/triton4-lip/lip_tracer/')
 from blip_pipeline.add_noise_to_img import run_tracer_with_transform
 from blip_pipeline.divergences import get_divergence_pts
 from blip_pipeline.make_endpoint_mapping import get_matching
-from learn_from_demos_ltodo import DemoPipeline
+from learn_from_demos_ltodo_arducam import DemoPipeline
 from untangling.utils.grasp import GraspSelector
 from untangling.point_picking import click_points_simple, click_points_closest
 from push_through_backup2 import get_poi_and_vec_for_push, perform_push_through, perform_pindown
@@ -23,6 +23,14 @@ from autolab_core import RigidTransform
 from untangling.tracer_knot_detect.tracer import TraceEnd
 from untangling.utils.tcps import *
 
+T_CAM_BASE = RigidTransform.load("/home/mallika/triton4-lip/phoxipy/tools/arducam_to_world_bww.tf").as_frames(from_frame="arducam", to_frame="base_link")
+CONST = 1.25
+ARDUCAM_INTRINSICS_MANIP = np.array([[758.923378*CONST,   0.,         960],
+ [  0.,         757.65464286*CONST, 540],
+ [  0.,           0.,           1.        ]])
+ARDUCAM_INTRINSICS = np.array([[758.923378,   0.,         960],
+ [  0.,         757.65464286, 540],
+ [  0.,           0.,           1.        ]])
 MAX_TIME_HORIZON = 5 # maximum number of IP moves you can perform before termination regardless of trace state
 
 def euclidean_dist(x1, y1, x2, y2):
@@ -78,9 +86,15 @@ def initialize_pipeline(logLevel):
     return pipeline
 
 def acquire_image(cam):
-    # img_rgbd = cam.iface.take_image()
+
     ret, img = cam.read()
-    img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+    if ret:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        print("Error: Couldn't capture an image!")
+
+    
     return ret, img
 
 def choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_rgb, choose_ip_point=False, viz=True):
@@ -92,9 +106,12 @@ def choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_r
             else:
                 refined_pick_pts = [pick_img]
     else:
-        fullPipeline.get_endpoints()
+        fullPipeline.get_endpoints(img_rgb)
         if step == 0:
             print("Choose endpoint")
+            plt.imshow(img_rgb)
+            plt.show()
+            print(fullPipeline.endpoints)
             chosen_endpoint, _ = click_points_closest(img_rgb, fullPipeline.endpoints)
             print("Chosen endpoint:", chosen_endpoint)
             for i in range(len(fullPipeline.endpoints)):
@@ -103,7 +120,7 @@ def choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_r
             prev_endpoints = np.array(fullPipeline.endpoints)
         else:
             # use hungarian algorithm to match endpoints
-            fullPipeline.get_endpoints()
+            fullPipeline.get_endpoints(img_rgb)
             old_endpts = np.array(prev_endpoints)
             new_endpts = np.array(fullPipeline.endpoints)
             old_indices, new_indices = get_matching(old_endpts, new_endpts, viz=False)
@@ -308,10 +325,10 @@ def main():
     start_time = time.time()
     fullPipeline = initialize_pipeline(logLevel)
     # Open the video device
-    cam = cv2.VideoCapture(0)
-    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-
+    cam = fullPipeline.iface.cam
+    if not cam.isOpened():
+        print("*** Error: Couldn't open the video device! ***")
+        exit()
     step, prev_endpoints, prev_endpoint_idx, curr_endpoint_idx = 0, [], [], -1
     
     trace_ct = [] #number of points on trace, append per iteration
@@ -321,13 +338,15 @@ def main():
     while not DONE or len(ip_history) < MAX_TIME_HORIZON: 
         # try:
             ret, img_rgb = acquire_image(cam)
-            for attempt in range(10):
-                try:
-                    chosen_endpoint, prev_endpoints, prev_endpoint_idx = choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_rgb)
-                except:
-                    print("\n***Forgot to choose an endpoint***\n")
-                else:
-                    break
+            chosen_endpoint, prev_endpoints, prev_endpoint_idx = choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_rgb)
+            # for attempt in range(10):
+            #     try:
+            #         chosen_endpoint, prev_endpoints, prev_endpoint_idx = choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_rgb)
+            #     except Exception as e: 
+            #         print(e)
+            #         # print("\n***Forgot to choose an endpoint***\n")
+            #     else:
+            #         break
             # num_ex = 10
 
             # plt.imshow(img_rgb)
@@ -337,7 +356,7 @@ def main():
             # fig = plt.gcf()
             # fig.savefig(title)
 
-            starting_pixels, _analytic_trace_problem = fullPipeline.get_trace_from_endpoint(chosen_endpoint)
+            starting_pixels, _analytic_trace_problem = fullPipeline.get_trace_from_endpoint(img_rgb, chosen_endpoint)
 
             if len(ip_history) == 0:
                 trace_t, _, _, normalized_covs, normalized_cable_density, y_buffer, x_buffer = run_tracer_with_transform(img_rgb, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=None)

@@ -1,0 +1,5 @@
+16:07:31 Level 25 IP Moves Executed: 0
+16:08:01 Level 25 Image saved to ./logs/full_rollouts/logs_2023-11-18_16-07-28/images/trace2023-11-18_16-07-59.png
+16:08:01 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-11-18_16-07-28/traces/trace_coords2023-11-18_16-07-59.png
+16:08:01 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-11-18_16-07-28/traces/endpoints2023-11-18_16-07-59.png
+16:08:01 Level 25 Executing Retrace Uncertainty Disambiguation (RUG-IP)

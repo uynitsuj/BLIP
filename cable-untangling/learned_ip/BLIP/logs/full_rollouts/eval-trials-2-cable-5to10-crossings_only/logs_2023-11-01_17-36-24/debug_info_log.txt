@@ -1,0 +1,19 @@
+17:36:25 Level 25 IP Moves Executed: 0
+17:37:15 Level 25 Image saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/images/trace2023-11-01_17-37-11.png
+17:37:15 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/traces/trace_coords2023-11-01_17-37-11.png
+17:37:15 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/traces/endpoints2023-11-01_17-37-11.png
+17:37:15 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+17:38:56 Level 25 Image saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/images/trace2023-11-01_17-38-01.png
+17:38:56 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/traces/trace_coords2023-11-01_17-38-01.png
+17:38:56 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/traces/endpoints2023-11-01_17-38-01.png
+17:38:56 Level 25 Executing Cable Endpoint Verification (CEV-IP)
+17:39:21 Level 25 Image saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/images/trace2023-11-01_17-39-17.png
+17:39:21 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/traces/trace_coords2023-11-01_17-39-17.png
+17:39:21 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-11-01_17-36-24/traces/endpoints2023-11-01_17-39-17.png
+17:39:21 Level 25 IP Moves Executed: 2
+17:39:22 WARNING  No paths made it to any bounding box.
+17:39:22 Level 25 
+******DONE******
+
+17:39:28 Level 25 Start correctly traced: 49/49 = 1.0
+17:39:28 Level 25 Final correctly traced: 49/49 = 1.0

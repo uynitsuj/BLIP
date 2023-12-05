@@ -10,7 +10,7 @@ from untangling.utils.grasp import GraspSelector
 import time
 from autolab_core import RigidTransform, Point, RgbdImage, DepthImage, ColorImage
 from autolab_core.transformations import rotation_matrix
-from scripts.full_pipeline_trunk import FullPipeline
+from scripts.full_pipeline_trunk_BLIP import FullPipeline
 
 from collections import OrderedDict
 import argparse
@@ -21,7 +21,7 @@ import colorsys
 DIST_TO_TABLE_LEFT = 1.025 # meters
 DIST_TO_TABLE_RIGHT = 0.99 # meters
 
-T_CAM_BASE = RigidTransform.load("/home/mallika/triton4-lip/phoxipy/tools/arducam_to_world_bww.tf").as_frames(from_frame="arducam", to_frame="base_link")
+T_CAM_BASE = RigidTransform.load("/home/mallika/triton4-lip/phoxipy/tools/phoxi_to_world_bww.tf").as_frames(from_frame="phoxi", to_frame="base_link")
 
 Z_OFFSET = 1.4e-3
 
@@ -30,23 +30,20 @@ def get_world_coord_from_pixel_coord(pixel_coord, cam_intrinsics):
     pixel_coord: [x, y] in pixel coordinates
     cam_intrinsics: 3x3 camera intrinsics matrix
     '''
+    fixed_depth = 0.0421
     height_samples = [0.043108, 0.041911, 0.0420478, 0.04362216]
-
+    # print(cam_intrinsics._K)
     pixel_coord = np.array(pixel_coord)
-    point_3d_cam = np.linalg.inv(cam_intrinsics).dot(np.r_[pixel_coord, 1.0])
-    # print(T_CAM_BASE.matrix)
-    # PHOXI_TO_WORLD = np.eye(4)
-    # PHOXI_TO_WORLD[:3,:3] = np.array([[0,-1,0],[-1,0,0],[0,0,-1]])
-    # PHOXI_TO_WORLD[:,3] = np.array([T_CAM_BASE.matrix[0,3], T_CAM_BASE.matrix[1,3], T_CAM_BASE.matrix[2,3], 1.0])
-    # print(PHOXI_TO_WORLD)
+    point_3d_cam = np.linalg.inv(cam_intrinsics._K).dot(np.r_[pixel_coord, 1.0])
     point_3d_world = T_CAM_BASE.matrix.dot(np.r_[point_3d_cam, 1.0])
     # print(T_CAM_BASE.matrix)
     # print(point_3d_world)
     point_3d_world = point_3d_world[:3]/point_3d_world[3]
     # print(point_3d_world)
     # point_3d_world[-1] = np.mean(height_samples)
-    point_3d_world[-1] = np.mean(height_samples)+.008
-    print('non-homogenous = ', point_3d_world)
+    # point_3d_world[-1] = np.mean(height_samples) + 0.005
+    point_3d_world[-1] = fixed_depth
+    # print('non-homogenous = ', point_3d_world)
     return point_3d_world
 
 def visualize_trace(img, trace):
@@ -70,11 +67,9 @@ def visualize_trace(img, trace):
 
 def gaussian_2d(width, height):
     x, y = np.meshgrid(np.linspace(-1, 1, height), np.linspace(-1, 1, width))
-    # x, y = np.meshgrid(np.linspace(-1, 1, width), np.linspace(-1, 1, height))
     d = np.sqrt(x*x+y*y)
-    sigma, mu = 0.6, 0.0
+    sigma, mu = 0.8, 0.0
     g = np.exp(-( (d-mu)**2 / ( 2.0 * sigma**2 ) ) )
-    
     return g
 
 def get_closest_trace_idx(pix, trace):
@@ -84,12 +79,12 @@ def get_closest_trace_idx(pix, trace):
 def is_valid_cc(cc_stats, cc_labels, cc, radius=25):
     if cc == 0:
         return False
-    center = (cc_labels.shape[0] // 2, cc_labels.shape[1] // 2)
-    mask = (cc_labels == cc).astype(np.uint8)
+    # center = (cc_labels.shape[0] // 2, cc_labels.shape[1] // 2)
+    # mask = (cc_labels == cc).astype(np.uint8)
 
-    component_pixels = np.column_stack(np.where(mask == 1))
+    # component_pixels = np.column_stack(np.where(mask == 1))
 
-    touching_center = any(np.linalg.norm(np.array(pixel) - np.array(center)) <= radius for pixel in component_pixels)
+    # touching_center = any(np.linalg.norm(np.array(pixel) - np.array(center)) <= radius for pixel in component_pixels)
     # fig, ax = plt.subplots()
     # # Display the binary image
     # print(touching_center)
@@ -99,7 +94,7 @@ def is_valid_cc(cc_stats, cc_labels, cc, radius=25):
 
     # ax.imshow(mask)
     # plt.show()
-    return is_large_cc(cc_stats, cc) and touching_center
+    return is_large_cc(cc_stats, cc)
 
 def is_large_cc(cc_stats, cc):
     return cc_stats[cc][4] > 400 # minimum cc pixel area of 1000 may be tuned
@@ -187,7 +182,7 @@ def get_poi_and_vec_for_push(push_coord, img_rgb, trace, place_box_img_W=150, ed
     
     #plt.imshow(binary_img, cmap='gray')
     #plt.show()
-    dilate_size = 8
+    dilate_size = 4
     dilate_kernel = np.ones((dilate_size,dilate_size), np.uint8)
     dilated_binary_img = cv2.dilate(binary_img, dilate_kernel)
     #plt.imshow(dilated_binary_img, cmap='gray')
@@ -201,39 +196,41 @@ def get_poi_and_vec_for_push(push_coord, img_rgb, trace, place_box_img_W=150, ed
                 dilated_binary_img[i][j] = 1
 
     num_labels, labels, stats, centroids= cv2.connectedComponentsWithStats(dilated_binary_img)
-    
-    if viz:
-        plt.scatter(poi_cropped[0],poi_cropped[1])
+    # fig, ax = plt.subplots()
+    # if viz:
+    #     ax.scatter(poi_cropped[0],poi_cropped[1])
 
     poidotproducts = []
     candidate_pts = []
     for label in range(num_labels):
         if is_valid_cc(stats, labels, label): # minimum cc pixel area of 1000 may be tuned
             center_point = get_pole(labels=labels, label = label)
-            plt.title("Per-Region Candidates")
+            # plt.title("Per-Region Candidates")
 
-            plt.scatter(center_point[0],center_point[1])
+            # ax.scatter(center_point[0],center_point[1])
             pointerest_center_vec = (np.array(center_point) - poi_cropped)/np.linalg.norm(np.array(center_point) - poi_cropped)
             
-            plt.text(center_point[0]-5,center_point[1]-5, str(round(np.dot(poi_tan_vec, pointerest_center_vec), 2)), fontsize=14)
+            # ax.text(center_point[0]-5,center_point[1]-5, str(round(np.dot(poi_tan_vec, pointerest_center_vec), 2)), fontsize=14)
             
             poidotproducts.append(np.dot(poi_tan_vec, pointerest_center_vec))
             candidate_pts.append(center_point)
 
-    if viz:
-        fig, ax = plt.subplots()
+    # if viz:
 
-        # Display the binary image
-        # ax.imshow(img, cmap='gray')
+    #     # Display the binary image
+    #     # ax.imshow(img, cmap='gray')
 
-        # Plot a circle centered at (0,0) with radius 50
-        circle = patches.Circle((labels.shape[0]/2, labels.shape[1]/2), radius=25, edgecolor='red', facecolor='none')
-        ax.add_patch(circle)
-        plt.imshow(labels)
-        plt.show()
+    #     # Plot a circle centered at (0,0) with radius 50
+    #     circle = patches.Circle((labels.shape[0]/2, labels.shape[1]/2), radius=25, edgecolor='red', facecolor='none')
+    #     ax.add_patch(circle)
+    #     ax.imshow(labels)
+    #     plt.show()
 
     def check_in_buffer(pt):
         pt = [pt[1], pt[0]]
+        # print('y_buffer: ', y_buffer)
+        # print('img_rgb.shape[0]: ', img_rgb.shape[0])
+        # print('pt[0]: ', pt[0])
         if pt[0] > (img_rgb.shape[0] - y_buffer):
             return True
         if pt[0] < y_buffer:
@@ -299,6 +296,7 @@ def perform_pindown(trace, push_coord, normalized_cable_density, img, fullPipeli
 
     pin_arm = None
 
+    fixed_depth = 0.0421
     if push_coord[1] > 590:
         pin_arm = 'left'
 
@@ -323,7 +321,7 @@ def perform_pindown(trace, push_coord, normalized_cable_density, img, fullPipeli
         # plt.show()
 
         place1 = get_world_coord_from_pixel_coord(pindown_pt, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
-
+        place1 = [place1[0], place1[1], fixed_depth]
         x1, x2 = get_world_coord_from_pixel_coord(trace[trace_idx-1], iface.cam.intrinsics), get_world_coord_from_pixel_coord(trace[trace_idx+1], iface.cam.intrinsics)
         gripper_rot = get_pindown_gripper_rot(place1, x1, x2)
 
@@ -345,6 +343,10 @@ def perform_pindown(trace, push_coord, normalized_cable_density, img, fullPipeli
             from_frame=YK.l_tcp_frame,
             to_frame="base_link",
         )
+
+        good_path = iface.check_cartesian_path(l_targets=[intermediate_place1_transform, place1_transform], removejumps=[6])
+        if not good_path:
+            raise Exception("Unable to plan jump-free cartesian path despite numerous attempts.")
 
         iface.go_cartesian(l_targets=[intermediate_place1_transform,place1_transform], removejumps=[6])
         iface.sync()
@@ -377,6 +379,7 @@ def perform_pindown(trace, push_coord, normalized_cable_density, img, fullPipeli
         # plt.show()
 
         place1 = get_world_coord_from_pixel_coord(pindown_pt, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
+        place1 = [place1[0], place1[1], fixed_depth]
         intermediate_place1 = place1 + np.array([0, 0, 0.07])
 
         x1, x2 = get_world_coord_from_pixel_coord(trace[trace_idx-1], iface.cam.intrinsics), get_world_coord_from_pixel_coord(trace[trace_idx+1], iface.cam.intrinsics)
@@ -400,6 +403,9 @@ def perform_pindown(trace, push_coord, normalized_cable_density, img, fullPipeli
             from_frame=YK.r_tcp_frame,
             to_frame="base_link",
         )
+        good_path = iface.check_cartesian_path(r_targets=[intermediate_place1_transform, place1_transform], removejumps=[6])
+        if not good_path:
+            raise Exception("Unable to plan jump-free cartesian path despite numerous attempts.")
         iface.go_cartesian(r_targets=[intermediate_place1_transform,place1_transform], removejumps=[6])
         iface.sync()
 
@@ -417,6 +423,7 @@ def perform_pindown(trace, push_coord, normalized_cable_density, img, fullPipeli
 
 def perform_push_through(poi_trace, cen_poi_vec, img, fullPipeline, viz=False, pin_arm=None):
     
+    # print('poi_trace: ', poi_trace[0:2])
     waypoint1 = np.array([poi_trace[0], poi_trace[1]]) + cen_poi_vec
     waypoint2 = np.array([poi_trace[0], poi_trace[1]]) - cen_poi_vec*0.7
 
@@ -436,20 +443,24 @@ def perform_push_through(poi_trace, cen_poi_vec, img, fullPipeline, viz=False, p
     waypoint1 = [int(waypoint1[0]), int(waypoint1[1])]
     waypoint2 = [int(waypoint2[0]), int(waypoint2[1])]
 
-    print('waypoint1: ', waypoint1)
-    print('waypoint2: ', waypoint2)
+    # min_img_y = 50
+    # waypoint1[1] = max(waypoint1[1], min_img_y)
+    # waypoint2[1] = max(waypoint2[1], min_img_y)
+
+    # print('waypoint1: ', waypoint1)
+    # print('waypoint2: ', waypoint2)
+    # print('img size: ', img.color._data.shape)
     
 
-    average_place = (np.array(waypoint1) + np.array(waypoint2))/2
-    fixed_depth = 0.0419
+    fixed_depth = 0.0421
     #fixed_depth = 0.0935
     if poi_trace[0] > 590:
         place1 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
         place2 = get_world_coord_from_pixel_coord(waypoint2, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
         place1 = [place1[0], place1[1], fixed_depth]
         place2 = [place2[0], place2[1], fixed_depth]
-        print(place1)
-        print(place2)
+        # print(place1)
+        # print(place2)
         intermediate_place1 = place1 + np.array([0, 0, 0.07])
         intermediate_place2 = place2 + np.array([0, 0, 0.07])
         intermediate_place3 = np.array([.4, -.25, 0.12])
@@ -485,16 +496,22 @@ def perform_push_through(poi_trace, cen_poi_vec, img, fullPipeline, viz=False, p
             from_frame=YK.r_tcp_frame,
             to_frame="base_link",
         )
+        good_path = iface.check_cartesian_path(r_targets=[intermediate_place1_transform, place1_transform, place2_transform, 
+                                                           intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
+        if not good_path:
+            raise Exception("Unable to plan jump-free cartesian path despite numerous attempts.")
+
         iface.go_cartesian(r_targets=[intermediate_place1_transform, place1_transform, place2_transform, intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
         iface.sync()
+        time.sleep(0.5)
 
     else:
         place1 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
         place2 = get_world_coord_from_pixel_coord(waypoint2, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
         place1 = [place1[0], place1[1], fixed_depth]
         place2 = [place2[0], place2[1], fixed_depth]
-        print(place1)
-        print(place2)
+        # print(place1)
+        # print(place2)
         intermediate_place1 = place1 + np.array([0, 0, 0.07])
         intermediate_place2 = place2 + np.array([0, 0, 0.07])
         intermediate_place3 = np.array([0.4, 0.25, 0.12])
@@ -531,12 +548,176 @@ def perform_push_through(poi_trace, cen_poi_vec, img, fullPipeline, viz=False, p
             to_frame="base_link",
         )
 
+        good_path = iface.check_cartesian_path(l_targets=[intermediate_place1_transform, place1_transform, place2_transform, 
+                                                           intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
+        if not good_path:
+            raise Exception("Unable to plan jump-free cartesian path despite numerous attempts.")
+
         iface.go_cartesian(l_targets=[intermediate_place1_transform, place1_transform, place2_transform, intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
         iface.sync()
+        time.sleep(0.5)
 
     if pin_arm is not None:
+        time.sleep(0.5)
         iface.open_gripper(pin_arm)
         iface.sync()
+    
+    iface.home()
+    iface.sync()
+    iface.close_grippers()
+    iface.sync()
+    time.sleep(1)
+
+
+def perform_pick_away(poi_trace, cen_poi_vec, img, fullPipeline, trace, viz=False):
+    
+    waypoint1 = np.array([poi_trace[0], poi_trace[1]]) + cen_poi_vec
+    waypoint2 = np.array([poi_trace[0], poi_trace[1]]) - cen_poi_vec*0.7
+
+    if viz:
+        plt.text(waypoint1[0]+7,waypoint1[1]+7, 'pt 1')
+        plt.text(waypoint2[0]+7,waypoint2[1]+7, 'pt 2')
+        plt.scatter(waypoint1[0],waypoint1[1])
+        plt.scatter(waypoint2[0],waypoint2[1])
+        plt.imshow(img.color._data)
+        plt.show()
+
+    iface = fullPipeline.iface
+
+    # print(h)
+    waypoint1 = [int(waypoint1[0]), int(waypoint1[1])]
+    waypoint2 = [int(waypoint2[0]), int(waypoint2[1])]
+
+    # print('waypoint1: ', waypoint1)
+    # print('waypoint2: ', waypoint2)
+    
+
+    fixed_depth = 0.0421
+    if poi_trace[0] > 590:
+        place1 = get_world_coord_from_pixel_coord(poi_trace, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
+        place2 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
+        place1 = [place1[0], place1[1], fixed_depth]
+        place2 = [place2[0], place2[1], fixed_depth]
+        # print(place1)
+        # print(place2)
+        x1, x2 = get_world_coord_from_pixel_coord(trace[0][-1], iface.cam.intrinsics), get_world_coord_from_pixel_coord(trace[0][-2], iface.cam.intrinsics)
+        gripper_rot = get_pindown_gripper_rot(place1, x1, x2)
+        gripper_rot = gripper_rot @ iface.GRIP_DOWN_R
+        intermediate_place1 = place1 + np.array([0, 0, 0.07])
+        intermediate_place2 = place2 + np.array([0, 0, 0.07])
+        intermediate_place3 = np.array([.4, -.25, 0.12])
+        # right arm
+        intermediate_place1_transform = RigidTransform(
+            translation=intermediate_place1,
+            rotation= gripper_rot,
+            from_frame=YK.r_tcp_frame,
+            to_frame="base_link",
+        )
+
+        intermediate_place2_transform = RigidTransform(
+            translation=intermediate_place2,
+            rotation= iface.GRIP_DOWN_R,
+            from_frame=YK.r_tcp_frame,
+            to_frame="base_link",
+        )
+        intermediate_place3_transform = RigidTransform(
+            translation=intermediate_place3,
+            rotation= iface.GRIP_DOWN_R,
+            from_frame=YK.r_tcp_frame,
+            to_frame="base_link",
+        )
+        place1_transform = RigidTransform(
+            translation=place1,
+            rotation= gripper_rot,
+            from_frame=YK.r_tcp_frame,
+            to_frame="base_link",
+        )
+        place2_transform = RigidTransform(
+            translation=place2,
+            rotation= iface.GRIP_DOWN_R,
+            from_frame=YK.r_tcp_frame,
+            to_frame="base_link",
+        )
+        # print(intermediate_place1_transform, place1_transform)
+        good_path = iface.check_cartesian_path(r_targets=[intermediate_place1_transform, place1_transform, place2_transform, 
+                                                           intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
+        if not good_path:
+            raise Exception("Unable to plan jump-free cartesian path despite numerous attempts.")
+        
+        iface.open_gripper('right')
+        iface.sync()
+        iface.go_cartesian(r_targets=[intermediate_place1_transform, place1_transform], removejumps=[6])
+        iface.close_gripper('right')
+        iface.sync()
+        iface.go_cartesian(r_targets=[place2_transform], removejumps=[6])
+        iface.open_gripper('right')
+        iface.sync()
+        iface.go_cartesian(r_targets = [intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
+        iface.sync()
+        time.sleep(0.5)
+
+    else:
+        place1 = get_world_coord_from_pixel_coord(poi_trace, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
+        place2 = get_world_coord_from_pixel_coord(waypoint1, iface.cam.intrinsics) # convert pixel coordinates to 3d coordinates
+        place1 = [place1[0], place1[1], fixed_depth]
+        place2 = [place2[0], place2[1], fixed_depth]
+        # print(place1)
+        # print(place2)
+        x1, x2 = get_world_coord_from_pixel_coord(trace[0][-1], iface.cam.intrinsics), get_world_coord_from_pixel_coord(trace[0][-2], iface.cam.intrinsics)
+        gripper_rot = get_pindown_gripper_rot(place1, x1, x2)
+        gripper_rot = gripper_rot @ iface.GRIP_DOWN_R
+        intermediate_place1 = place1 + np.array([0, 0, 0.07])
+        intermediate_place2 = place2 + np.array([0, 0, 0.07])
+        intermediate_place3 = np.array([0.4, 0.25, 0.12])
+        
+        intermediate_place1_transform = RigidTransform(
+            translation=intermediate_place1,
+            rotation= gripper_rot,
+            from_frame=YK.l_tcp_frame,
+            to_frame="base_link",
+        )
+
+        intermediate_place2_transform = RigidTransform(
+            translation=intermediate_place2,
+            rotation= iface.GRIP_DOWN_R,
+            from_frame=YK.l_tcp_frame,
+            to_frame="base_link",
+        )
+        intermediate_place3_transform = RigidTransform(
+            translation=intermediate_place3,
+            rotation= iface.GRIP_DOWN_R,
+            from_frame=YK.l_tcp_frame,
+            to_frame="base_link",
+        )
+        place1_transform = RigidTransform(
+            translation=place1,
+            rotation= gripper_rot,
+            from_frame=YK.l_tcp_frame,
+            to_frame="base_link",
+        )
+        place2_transform = RigidTransform(
+            translation=place2,
+            rotation= gripper_rot,
+            from_frame=YK.l_tcp_frame,
+            to_frame="base_link",
+        )
+
+        good_path = iface.check_cartesian_path(l_targets=[intermediate_place1_transform, place1_transform, place2_transform, 
+                                                           intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
+        if not good_path:
+            raise Exception("Unable to plan jump-free cartesian path despite numerous attempts.")
+
+        iface.open_gripper('left')
+        iface.sync()
+        iface.go_cartesian(l_targets=[intermediate_place1_transform, place1_transform], removejumps=[6])
+        iface.close_gripper('left')
+        iface.sync()
+        iface.go_cartesian(l_targets=[place2_transform], removejumps=[6])
+        iface.open_gripper('left')
+        iface.sync()
+        iface.go_cartesian(l_targets = [intermediate_place2_transform, intermediate_place3_transform], removejumps=[6])
+        iface.sync()
+        time.sleep(0.5)
     
     iface.home()
     iface.sync()

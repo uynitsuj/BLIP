@@ -1,0 +1,14 @@
+11:07:52 Level 25 IP Moves Executed: 0
+11:08:18 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_11-07-51/images/trace2023-12-05_11-08-15.png
+11:08:18 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_11-07-51/traces/trace_coords2023-12-05_11-08-15.png
+11:08:18 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_11-07-51/traces/endpoints2023-12-05_11-08-15.png
+11:08:18 Level 25 Executing Cable Endpoint Verification (CEV-IP)
+11:08:39 Level 25 Image saved to ./logs/full_rollouts/logs_2023-12-05_11-07-51/images/trace2023-12-05_11-08-36.png
+11:08:39 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-12-05_11-07-51/traces/trace_coords2023-12-05_11-08-36.png
+11:08:39 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-12-05_11-07-51/traces/endpoints2023-12-05_11-08-36.png
+11:08:39 Level 25 IP Moves Executed: 1
+11:08:40 Level 25 
+******DONE******
+
+11:08:43 Level 25 Start trace length: 48
+11:08:43 Level 25 Final trace length: 48

@@ -1,0 +1,6 @@
+# ninja log v5
+0	3863	1693519363201838223	/home/mallika/triton4-lip/detectron2/build/temp.linux-x86_64-3.8/home/mallika/triton4-lip/detectron2/detectron2/layers/csrc/cocoeval/cocoeval.o	ee8fbb53bc8afb0
+0	5218	1693519364553847278	/home/mallika/triton4-lip/detectron2/build/temp.linux-x86_64-3.8/home/mallika/triton4-lip/detectron2/detectron2/layers/csrc/box_iou_rotated/box_iou_rotated_cpu.o	9a7cb4bde26d313d
+0	5316	1693519364653847947	/home/mallika/triton4-lip/detectron2/build/temp.linux-x86_64-3.8/home/mallika/triton4-lip/detectron2/detectron2/layers/csrc/nms_rotated/nms_rotated_cpu.o	7f7abe26ed954378
+0	6090	1693519365425853105	/home/mallika/triton4-lip/detectron2/build/temp.linux-x86_64-3.8/home/mallika/triton4-lip/detectron2/detectron2/layers/csrc/ROIAlignRotated/ROIAlignRotated_cpu.o	bc9233f81257ca75
+0	14946	1693519374273911690	/home/mallika/triton4-lip/detectron2/build/temp.linux-x86_64-3.8/home/mallika/triton4-lip/detectron2/detectron2/layers/csrc/vision.o	5d96565a0e2d9a60

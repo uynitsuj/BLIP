@@ -7,6 +7,8 @@ import cv2
 import matplotlib.pyplot as plt
 import time
 import os
+import os.path as osp
+import datetime
 from collections import OrderedDict
 from enum import Enum
 # Importing custom modules
@@ -18,12 +20,14 @@ from blip_pipeline.make_endpoint_mapping import get_matching
 from learn_from_demos_ltodo import DemoPipeline
 from untangling.utils.grasp import GraspSelector
 from untangling.point_picking import click_points_simple, click_points_closest
-from push_through_backup2 import get_poi_and_vec_for_push, perform_push_through, perform_pindown
+from push_through_backup2 import get_poi_and_vec_for_push, perform_push_through, perform_pindown, perform_pick_away
 from autolab_core import RigidTransform
 from untangling.tracer_knot_detect.tracer import TraceEnd
 from untangling.utils.tcps import *
+from calc_arc_length import get_circle, in_circle, view_circles, get_new_start_pt
 
-MAX_TIME_HORIZON = 5 # maximum number of IP moves you can perform before termination regardless of trace state
+MAX_TIME_HORIZON = 8 # maximum number of IP moves you can perform before termination regardless of trace state
+CABLE_LENGTH = 49
 
 def euclidean_dist(x1, y1, x2, y2):
     return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
@@ -34,12 +38,12 @@ def calculate_pixel_arc_length(trace):
 def color_for_pct(pct):
     return tuple(int(c * 255) for c in colorsys.hsv_to_rgb(pct, 1, 1))
 
-def visualize_trace(img, trace, endpoints=None, save=True):
+def visualize_trace(fullPipeline, img, trace, endpoints=None, save=True, dirname = None):
     img_copy = img.copy()
     for i in range(len(trace) - 1):
         pt1, pt2 = get_trace_points(trace, i)
         cv2.line(img_copy, pt1[::-1], pt2[::-1], color_for_pct(i / len(trace)), 4)    
-    display_image(img_copy, trace, endpoints, save)
+    display_image(fullPipeline, img_copy, trace, endpoints, save, dirname)
 
 def get_trace_points(trace, idx):
     if not isinstance(trace, OrderedDict):
@@ -47,15 +51,26 @@ def get_trace_points(trace, idx):
     trace_keys = list(trace.keys())
     return trace_keys[idx], trace_keys[idx + 1]
 
-def display_image(img, trace, endpoints, save):
+def display_image(fullPipeline, img, trace, endpoints, save, dirname):
+    txt_offset = 2
     plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     if endpoints is not None:
-        for ep in endpoints:
+        for i, ep in enumerate(endpoints):
             plt.scatter(ep[1], ep[0], c='r', s=4)
 
     plt.title("Trace Visualized")
+    cur_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
     if save:
-        plt.savefig("./images/blip"+str(time.time())+".png")
+        fig = plt.gcf()
+        plt.show()
+
+        fig.savefig(osp.join(f'./logs/full_rollouts/{dirname}/images/trace{cur_time}.png'))
+        fullPipeline.logger.log(25, 'Image saved to ' + osp.join(f'./logs/full_rollouts/{dirname}/images/trace{cur_time}.png'))
+        np.save(osp.join(f'./logs/full_rollouts/{dirname}/traces/trace_coords{cur_time}.npy'), trace)
+        fullPipeline.logger.log(25, 'Trace saved to ' + osp.join(f'./logs/full_rollouts/{dirname}/traces/trace_coords{cur_time}.png'))
+        np.save(osp.join(f'./logs/full_rollouts/{dirname}/traces/endpoints{cur_time}.npy'), endpoints)
+        fullPipeline.logger.log(25, 'Endpoints saved to ' + osp.join(f'./logs/full_rollouts/{dirname}/traces/endpoints{cur_time}.png'))
     else:
         plt.show()
 
@@ -64,8 +79,8 @@ def parse_args():
     parser.add_argument(
         '-d', '--debug',
         help="Print more debug statements",
-        action="store_const", dest="loglevel", const=logging.DEBUG,
-        default=logging.INFO,
+        action="store_const", dest="loglevel", const=25,
+        default=25,
     )
     return parser.parse_args()
 
@@ -81,7 +96,7 @@ def acquire_image(pipeline):
     img_rgbd = pipeline.iface.take_image()
     return img_rgbd, img_rgbd.color._data
 
-def choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_rgb, choose_ip_point=False, viz=True):
+def choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_rgb, choose_ip_point=False, viz=False):
     if choose_ip_point:
             print("Choose IP point")
             pick_img, _ = click_points_simple(img_rgb)
@@ -101,14 +116,13 @@ def choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_r
             prev_endpoints = np.array(fullPipeline.endpoints)
         else:
             # use hungarian algorithm to match endpoints
-            fullPipeline.get_endpoints()
             old_endpts = np.array(prev_endpoints)
             new_endpts = np.array(fullPipeline.endpoints)
             old_indices, new_indices = get_matching(old_endpts, new_endpts, viz=False)
 
-            if len(list(range(old_endpts.shape[0])) - old_indices) > 0:
-                missing_idx = list(range(old_endpts.shape[0])) - old_indices
-                missing_endpt = old_endpts[missing_idx]
+            # if len(list(range(old_endpts.shape[0]))) - len(old_indices) > 0:
+            #     missing_idx = list(range(old_endpts.shape[0])) - old_indices
+            #     missing_endpt = old_endpts[missing_idx]
                 ## PERFORM IP MOVE IN LOCATION OF MISSING ENDPOINT
 
 
@@ -170,19 +184,18 @@ def executeINTERNAL(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_covs, n
     delta_covariances = [0 if dc < eps and dc > 0 else dc for dc in delta_covariances]
     delta_densities = [0 if dd < eps and dd > 0 else dd for dd in delta_densities]
     # plot_covs_and_density(delta_covariances, delta_densities)
-    max_idx, max_val, total_val = None, 0, 0
+    # max_idx, max_val, total_val = None, 0, 0
     num_increases = 0
     uncertainty = []
-    #find the argmax of 0.125*delta_covariances[i]+0.125*delta_covariances[i+1] + 0.75*delta_density.
     for i, (dc, dd) in enumerate(zip(delta_covariances, delta_densities)):
         if dc > 0 and dd > 0:
             num_increases += 1
-            curr_sum = 0.20*delta_covariances[i] + 0.25*delta_covariances[i+1]+ 0.20*delta_covariances[i+2] + 0.40*dd
+            curr_sum = 0.15*delta_covariances[i] + 0.20*delta_covariances[i+1]+ 0.15*delta_covariances[i+2] + 0.55/3*delta_densities[i] + 0.55/3*normalized_cable_density[i+1] + 0.55/3*normalized_cable_density[i+2] 
             uncertainty.append(curr_sum)
-            total_val += curr_sum
-            if curr_sum > max_val:
-                max_val = curr_sum
-                max_idx = i
+            # total_val += curr_sum
+            # if curr_sum > max_val:
+            #     max_val = curr_sum
+            #     max_idx = i
         else:
             uncertainty.append(0)
 
@@ -191,49 +204,84 @@ def executeINTERNAL(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_covs, n
     # plt.xlabel('Trace Points')
     # plt.ylabel('Uncertainty')
     # plt.show()
-    push_coord = trace_t[0][max_idx]
-    # plt.imshow(img_rgb)
-    # plt.scatter(push_coord[1], push_coord[0], c='r')
-    # plt.show()
-    poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=True)
-    pin_arm = None
-    pin_arm = perform_pindown(trace_t[0], push_coord, normalized_cable_density, img_rgbd, fullPipeline)
-    perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=True, pin_arm=pin_arm)
 
-def executeENDPTPERTURB(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_cable_density):
-    push_coord = trace_t[0][-3]
-    # plt.imshow(img_rgb)
-    # plt.scatter(push_coord[1], push_coord[0], c='r')
-    # plt.show()
-    poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=True)
+    # max_idx = uncertainty.index(max(uncertainty))
+    # push_coord = trace_t[0][max_idx]
+    # # plt.imshow(img_rgb)
+    # # plt.scatter(push_coord[1], push_coord[0], c='r')
+    # # plt.show()
+    # poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=True)
     # pin_arm = None
     # pin_arm = perform_pindown(trace_t[0], push_coord, normalized_cable_density, img_rgbd, fullPipeline)
-    perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=True)
-    # perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=True)
+    # perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=False, pin_arm=pin_arm)
+    for max_idx in np.argsort([-x for x in uncertainty]):
+        push_coord = trace_t[0][max_idx]
+        # print('push_coord: ', push_coord)
+        poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=True)
+        try:
+            pin_arm = None
+            pin_arm = perform_pindown(trace_t[0], push_coord, normalized_cable_density, img_rgbd, fullPipeline)
+            perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=False, pin_arm=pin_arm)
+            break
+        except:
+            try:
+                perform_pick_away(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, trace_t)
+            except:
+                continue
+
+def executeENDPTPERTURB(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_cable_density):
+    # push_coord = trace_t[0][-3]
+    # print('push_coord: ', push_coord)
+    # poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=False)
+    # perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=False)
+    for i in range(len(trace_t[0])-3):
+        # print('i = ', i)
+        push_coord = trace_t[0][-3-i]
+        # print('push_coord: ', push_coord)
+        poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=False)
+        try:
+            perform_pick_away(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, trace_t)
+            break
+        except:
+            continue
 
 def executeRETRACE(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_cable_density):
-    push_coord = trace_t[0][-2]
-    # plt.imshow(img_rgb)
-    # plt.scatter(push_coord[1], push_coord[0], c='r')
-    # plt.show()
-    poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=True)
-    pin_arm = None
-    pin_arm = perform_pindown(trace_t[0], push_coord, normalized_cable_density, img_rgbd, fullPipeline)
-    perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=True, pin_arm=pin_arm)
-    # perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=True)
+    # push_coord = trace_t[0][-2]
+    # poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=False)
+    # pin_arm = None
+    # pin_arm = perform_pindown(trace_t[0], push_coord, normalized_cable_density, img_rgbd, fullPipeline)
+    # perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=False, pin_arm=pin_arm)
+    for i in range(len(trace_t[0])-2):
+        print('i = ', i)
+        push_coord = trace_t[0][-2-i]
+        print('push_coord: ', push_coord)
+        poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], viz=False)
+        try:
+            pin_arm = None
+            pin_arm = perform_pindown(trace_t[0], push_coord, normalized_cable_density, img_rgbd, fullPipeline)
+            perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=False, pin_arm=pin_arm)
+            break
+        except:
+            try:
+                perform_pick_away(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, trace_t)
+            except:
+                continue
 
 
-def executeEDGE(fullPipeline, img_rgb, img_rgbd, trace_t, y_buffer, x_buffer, normalized_cable_density):
-    push_coord = trace_t[0][-2]
-    # plt.imshow(img_rgb)
-    # plt.scatter(push_coord[1], push_coord[0], c='r')
-    # plt.show()
-    poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], edge_case=True, viz=True, 
-                                                      y_buffer=y_buffer, x_buffer=x_buffer)
-    pin_arm = None
-    pin_arm = perform_pindown(trace_t[0], push_coord, normalized_cable_density, img_rgbd, fullPipeline)
-    perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=True, pin_arm=pin_arm)
-    # perform_push_through(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, viz=True)
+def executeEDGE(fullPipeline, img_rgb, img_rgbd, trace_t, y_buffer=50, x_buffer=30):
+    # push_coord = trace_t[0][-2]
+    # poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], edge_case=True, viz=False, 
+    #                                                   y_buffer=y_buffer, x_buffer=x_buffer)
+    # perform_pick_away(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, trace_t)
+    for i in range(len(trace_t[0])-2):
+        push_coord = trace_t[0][-2-i]
+        poi_trace, cen_poi_vec = get_poi_and_vec_for_push(push_coord, img_rgb, trace_t[0], edge_case=True, viz=False, 
+                                                        y_buffer=y_buffer, x_buffer=x_buffer)
+        try:
+            perform_pick_away(poi_trace, cen_poi_vec, img_rgbd, fullPipeline, trace_t)
+            break
+        except:
+            continue
 
 class IPMove(Enum):
     INTERNAL = 1
@@ -241,63 +289,105 @@ class IPMove(Enum):
     EDGE_PERTURB = 3
     ENDPT_PERTURB = 4
 
+
+def count_circles(trace, click = False, viz = False, img = None):
+    circles = []
+    start_pt = trace[0]
+    next_idx = 1
+    while next_idx != trace.shape[0]-1:
+        next_pt = trace[next_idx]
+        circle, new_next_idx = get_circle(start_pt, next_pt, next_idx, trace)
+        new_start_pt = get_new_start_pt(trace, new_next_idx, circle._center, circle.radius)
+        start_pt = new_start_pt
+        next_idx = new_next_idx
+        circles.append(circle)
+    
+    if not in_circle(trace[-1], circles[-1]):
+        radius = circles[-1].radius
+        start, next = start_pt, trace[next_idx]
+        theta = np.arctan2((next[1] - start[1]), (next[0] - start[0]))
+        center_x = start[0] + np.cos(theta) * radius
+        center_y = start[1] + np.sin(theta) * radius
+        circle = plt.Circle((center_x, center_y), radius, color='r', fill=False)
+        circles.append(circle)
+
+    if viz:
+        if click:
+            return view_circles(trace, circles, click=True, img = img)
+        else:
+            return view_circles(trace, circles, img = img)
+    print(len(circles))
+    return len(circles)
+
+
 def trace_altered(trace_ct):
 # add alteration of endpoints?
     threshold = 2  # Placeholder value, adjust as needed
     trace_altered = abs(trace_ct[-1] - trace_ct[-2]) > threshold
     if trace_altered:
-        print("Trace altered")
+        print("\nTrace altered")
     else:
-        print("Trace did not alter significantly")
+        print("\nTrace did not alter significantly")
     return trace_altered
 
-def core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx):
+def core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx, global_conf):
     trace_state = trace_t[1]
     print(trace_state)
     if len(ip_history) >= MAX_TIME_HORIZON:
-        print("MAX_TIME_HORIZON reached")
+        print("MAX_TIME_HORIZON reached. Click circle to determine correctly traced percentage")
+        count_circles(trace_t[0], click=True, viz=True)
         return trace_t, normalized_covs, normalized_cable_density, trace_ct
-
-    if trace_state == TraceEnd.ENDPOINT:
+    if global_conf >= CABLE_LENGTH-1 and global_conf <= CABLE_LENGTH+1 and trace_state == TraceEnd.ENDPOINT:
+        print("execute endpt perturb")
+        fullPipeline.logger.log(25,"Executing Cable Endpoint Verification (CEV-IP)")
+        executeENDPTPERTURB(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_cable_density)
+        ip_history.append(IPMove.ENDPT_PERTURB)
+    elif trace_state == TraceEnd.ENDPOINT:
         print('execute internal')
+        fullPipeline.logger.log(25,'Executing Trace Uncertainty Disambiguation (TUG-IP)')
         executeINTERNAL(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_covs, normalized_cable_density)
         ip_history.append(IPMove.INTERNAL)
         img_rgbd, img_rgb = acquire_image(fullPipeline)
-        fullPipeline.get_endpoints()
         chosen_endpoint, prev_endpoints, prev_endpoint_idx = choose_endpoint(fullPipeline, 1, prev_endpoints, prev_endpoint_idx, img_rgb)
         starting_pixels, _analytic_trace_problem = fullPipeline.get_trace_from_endpoint(chosen_endpoint)
         trace_t, _, _, normalized_covs, normalized_cable_density, y_buffer, x_buffer = run_tracer_with_transform(img_rgb, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=None)
-        trace_ct.append(len(trace_t[0]))
+        # trace_ct.append(len(trace_t[0]))
+
+        trace_ct.append(count_circles(trace_t[0]))
         print(trace_t[1])
-        visualize_trace(img_rgb, trace_t[0], fullPipeline.endpoints)
+        visualize_trace(fullPipeline, img_rgb, trace_t[0], fullPipeline.endpoints, dirname=f'logs_{fullPipeline.date_time}')
         # Check for trace alteration or state change
         if trace_altered(trace_ct) or trace_state != TraceEnd.ENDPOINT:
             print("trace altered or trace moved off endpoint")
-            return core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx)
+            fullPipeline.logger.log(25,"Trace altered or trace moved off endpoint")
+            return core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx, global_conf=trace_ct[-1])
         else:
             print("execute endpt perturb")
+            fullPipeline.logger.log(25,"Executing Cable Endpoint Verification (CEV-IP)")
             executeENDPTPERTURB(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_cable_density)
             ip_history.append(IPMove.ENDPT_PERTURB)
     elif trace_state == TraceEnd.RETRACE:
         print('execute internal retrace')
+        fullPipeline.logger.log(25,"Executing Retrace Uncertainty Disambiguation (RUG-IP)")
         executeRETRACE(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_cable_density)
         ip_history.append(IPMove.INTERNAL_RETRACE)
     elif trace_state == TraceEnd.EDGE:
-        print('execute edge perturb')
-        executeEDGE(fullPipeline, img_rgb, img_rgbd, trace_t, y_buffer, x_buffer, normalized_cable_density)
+        print('execute internal edge')
+        fullPipeline.logger.log(25,"Executing Edge Recovery (ER-IP)")
+        executeEDGE(fullPipeline, img_rgb, img_rgbd, trace_t)
         ip_history.append(IPMove.EDGE_PERTURB)
     elif trace_state == TraceEnd.UNDETERMINED:
         print("entered UNDETERMINED state, performing retrace ip")
-        executeRETRACE(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_cable_density)
-        ip_history.append(IPMove.INTERNAL_RETRACE)
+        fullPipeline.logger.log(25,"Executing Trace Uncertainty Disambiguation (TUG-IP)")
+        executeINTERNAL(fullPipeline, img_rgb, img_rgbd, trace_t, normalized_covs, normalized_cable_density)
+        ip_history.append(IPMove.INTERNAL)
     img_rgbd, img_rgb = acquire_image(fullPipeline)
-    fullPipeline.get_endpoints()
     chosen_endpoint, prev_endpoints, prev_endpoint_idx = choose_endpoint(fullPipeline, 1, prev_endpoints, prev_endpoint_idx, img_rgb)
     starting_pixels, _analytic_trace_problem = fullPipeline.get_trace_from_endpoint(chosen_endpoint)
     trace_t, _, _, normalized_covs, normalized_cable_density, y_buffer, x_buffer = run_tracer_with_transform(img_rgb, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=None)    
-    print(trace_t[1])
-    visualize_trace(img_rgb, trace_t[0], fullPipeline.endpoints)
-    trace_ct.append(len(trace_t[0]))
+    visualize_trace(fullPipeline, img_rgb, trace_t[0], fullPipeline.endpoints, dirname=f'logs_{fullPipeline.date_time}')
+    # trace_ct.append(len(trace_t[0]))
+    trace_ct.append(count_circles(trace_t[0]))
     return trace_t, normalized_covs, normalized_cable_density, trace_ct
 
 def main():
@@ -307,14 +397,16 @@ def main():
     fullPipeline = initialize_pipeline(logLevel)
 
     step, prev_endpoints, prev_endpoint_idx, curr_endpoint_idx = 0, [], [], -1
-    
+    start_ct, end_ct = 0,-1
     trace_ct = [] #number of points on trace, append per iteration
     ip_history = [] #list of previous IP moves, append per iteration
     DONE = False
 
-    while not DONE or len(ip_history) < MAX_TIME_HORIZON: 
+    while (not DONE): 
+        fullPipeline.logger.log(25,'IP Moves Executed: ' + str(len(ip_history)))
         # try:
-            img_rgbd, img_rgb = acquire_image(fullPipeline)
+        img_rgbd, img_rgb = acquire_image(fullPipeline)
+        if step == 0:
             for attempt in range(10):
                 try:
                     chosen_endpoint, prev_endpoints, prev_endpoint_idx = choose_endpoint(fullPipeline, step, prev_endpoints, prev_endpoint_idx, img_rgb)
@@ -322,72 +414,48 @@ def main():
                     print("\n***Forgot to choose an endpoint***\n")
                 else:
                     break
-            # num_ex = 10
-
-            # plt.imshow(img_rgb)
-            # plt.scatter(chosen_endpoint[1], chosen_endpoint[0], s=10, c='r')
-            # H, W = img_rgb.shape[0], img_rgb.shape[1]
-            # title = "/home/justinyu/metric/example" + str(num_ex) + ".png"
-            # fig = plt.gcf()
-            # fig.savefig(title)
-
-            starting_pixels, _analytic_trace_problem = fullPipeline.get_trace_from_endpoint(chosen_endpoint)
-
-            if len(ip_history) == 0:
-                trace_t, _, _, normalized_covs, normalized_cable_density, y_buffer, x_buffer = run_tracer_with_transform(img_rgb, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=None)
-                # print(np.array(trace_t[0]).shape)
-                # np.save("/home/justinyu/metric/trace_pts" + str(num_ex) + ".npy", np.array(trace_t[0]))
-                # visualize_trace(img_rgb, trace_t[0])
-                # title = "/home/justinyu/metric/example_corect_trace" + str(num_ex) + ".png"
-                # fig = plt.figure()
-                # for pts in trace_t[0]:
-                #     plt.imshow(img_rgb)
-                #     plt.scatter(pts[1], pts[0], s=10, c='r')
-                # fig = plt.gcf()
-                # fig.savefig(title)
-                # break
-                trace_ct.append(len(trace_t[0]))
-                print(trace_t[1])
-                # print(fullPipeline.endpoints)
-                visualize_trace(img_rgb, trace_t[0], endpoints=fullPipeline.endpoints)
-                trace_t, normalized_covs, normalized_cable_density, trace_ct = core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, 
-                                                                                    normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx)
-            else:
-                last_move_was_endpt_perturb = ip_history[-1] == IPMove.ENDPT_PERTURB
-                if last_move_was_endpt_perturb and trace_t[1] == TraceEnd.ENDPOINT:
-                    print(TraceEnd.ENDPOINT)
-                    if trace_altered(trace_ct):
-                        trace_t, normalized_covs, normalized_cable_density, trace_ct = core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, 
-                                                                                            normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx)
-                    else:
-                        print("\n******DONE******\n")
-
-                        trace_t, _, _, normalized_covs, normalized_cable_density, y_buffer, x_buffer = run_tracer_with_transform(img_rgb, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=None)
-                        trace_ct.append(len(trace_t[0]))
-                        print(trace_t[1])
-                        visualize_trace(img_rgb, trace_t[0], fullPipeline.endpoints)
-                        
-                        DONE = True
-                        break
+        starting_pixels, _analytic_trace_problem = fullPipeline.get_trace_from_endpoint(chosen_endpoint)
+        if len(ip_history) == 0:
+            trace_t, _, _, normalized_covs, normalized_cable_density, y_buffer, x_buffer = run_tracer_with_transform(img_rgb, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=None)
+            trace_ct.append(count_circles(trace_t[0]))
+            start_ct = count_circles(trace_t[0], click=True, viz=True, img = img_rgb)
+            if start_ct == None: start_ct = count_circles(trace_t[0])
+            # start_percent_correct=start_ct/CABLE_LENGTH
+            print('Start trace length: ' + str(start_ct))
+            print(trace_t[1])
+            visualize_trace(fullPipeline, img_rgb, trace_t[0], endpoints=fullPipeline.endpoints, dirname=f'logs_{fullPipeline.date_time}')
+            trace_t, normalized_covs, normalized_cable_density, trace_ct = core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, 
+                                                                                normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx, global_conf=trace_ct[-1])
+        else:
+            if len(ip_history) >= MAX_TIME_HORIZON:
+                fullPipeline.logger.log(25, 'Max IP Move Horizon Reached')
+                end_ct = count_circles(trace_t[0], click=True, viz=True, img = img_rgb)
+                fullPipeline.logger.log(25,'Start trace length: ' + str(start_ct))
+                fullPipeline.logger.log(25,'Final trace length: ' + str(end_ct))
+                DONE = True
+                break
+            last_move_was_endpt_perturb = ip_history[-1] == IPMove.ENDPT_PERTURB
+            if last_move_was_endpt_perturb and trace_t[1] == TraceEnd.ENDPOINT:
+                print(TraceEnd.ENDPOINT)
+                if trace_altered(trace_ct):
+                    trace_t, normalized_covs, normalized_cable_density, trace_ct = core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, 
+                                                                                        normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx, global_conf=trace_ct[-1])
                 else:
-                    trace_t, normalized_covs,normalized_cable_density, trace_ct = core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, 
-                                                                                    normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx)
-                # trace_t, heatmaps, crops, normalized_covs, normalized_cable_density = run_tracer_with_transform(img_rgb, 10, starting_pixels, endpoints=fullPipeline.endpoints, sample=True, start_time=None)
-                # visualize_trace(img_rgb, trace_t[0])
+                    fullPipeline.logger.log(25,'\n******DONE******\n')
+                    print("\n******DONE******\n")
+                    # visualize_trace(fullPipeline, img_rgb, trace_t[0], endpoints=fullPipeline.endpoints, dirname=f'logs_{fullPipeline.date_time}')
+                    end_ct = count_circles(trace_t[0], click=True, viz=True, img = img_rgb)
+                    if end_ct == None: end_ct = count_circles(trace_t[0])
+                    fullPipeline.logger.log(25,'Start trace length: ' + str(start_ct))
+                    fullPipeline.logger.log(25,'Final trace length: ' + str(end_ct))
+                    DONE = True
+                    break
+            else:
+                trace_t, normalized_covs,normalized_cable_density, trace_ct = core(fullPipeline, img_rgb, img_rgbd, trace_t, ip_history, normalized_covs, 
+                                                                                normalized_cable_density, starting_pixels, trace_ct, y_buffer, x_buffer, prev_endpoints, prev_endpoint_idx, global_conf=trace_ct[-1])
+        if trace_t[1]==TraceEnd.UNDETERMINED:
+            print("Trace End state was TraceEnd.UNDETERMINED, evaluate cable trace")
+        step += 1
 
-            if trace_t[1]==TraceEnd.UNDETERMINED:
-                print("Trace End state was TraceEnd.UNDETERMINED, evaluate cable trace")
-            step += 1
-        # except Exception as e:
-        #     if "Not enough starting points" in str(e):
-        #         print(str(e))
-        #         print("\n***Recovery IP needs to be implemented***\nq")
-        #         plt.imshow(img_rgb)
-
-        #         NotImplementedError
-        #     else:
-        #         # else raise the same exception
-        #         print(str(e))
-        #         raise e
 if __name__ == "__main__":
     main()

@@ -70,7 +70,12 @@ def click_points_simple(img):
 def click_points_closest(img, endpoints):
     fig, ax = plt.subplots(1, 1)
     ax.imshow(img)
-    ax.scatter(endpoints[:, 1], endpoints[:, 0], s=5, c='r')
+    # ax.scatter(endpoints[:, 1], endpoints[:, 0], s=5, c='r')
+
+    txt_offset = 10
+    for i, ep in enumerate(endpoints):
+        ax.scatter(ep[1], ep[0], s=5, c='r')
+        ax.text(ep[1]+txt_offset, ep[0]+txt_offset, str(i+1), fontsize=12, color='g')
 
     left_coords,right_coords = None, None
     left_closest_endpoint, right_closest_endpoint = None, None

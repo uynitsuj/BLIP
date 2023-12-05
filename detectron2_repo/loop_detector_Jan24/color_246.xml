@@ -1,0 +1,26 @@
+<annotation>
+	<folder>loop_detector_Jan24</folder>
+	<filename>color_246.png</filename>
+	<path>/Users/jkerr/Desktop/loop_detector_Jan24/color_246.png</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1032</width>
+		<height>772</height>
+		<depth>1</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>knot</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>446</xmin>
+			<ymin>269</ymin>
+			<xmax>516</xmax>
+			<ymax>390</ymax>
+		</bndbox>
+	</object>
+</annotation>

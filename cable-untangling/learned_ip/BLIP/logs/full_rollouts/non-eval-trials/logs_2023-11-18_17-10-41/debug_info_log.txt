@@ -1,0 +1,5 @@
+17:10:43 Level 25 IP Moves Executed: 0
+17:11:11 Level 25 Image saved to ./logs/full_rollouts/logs_2023-11-18_17-10-41/images/trace2023-11-18_17-11-10.png
+17:11:11 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-11-18_17-10-41/traces/trace_coords2023-11-18_17-11-10.png
+17:11:11 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-11-18_17-10-41/traces/endpoints2023-11-18_17-11-10.png
+17:11:11 Level 25 Executing Edge Recovery (ER-IP)

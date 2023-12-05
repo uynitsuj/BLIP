@@ -2,10 +2,8 @@ from untangling.point_picking import click_points_simple
 import sys
 import numpy as np
 import argparse
-from untangling.utils.interface_rws import Interface
 from untangling.utils.tcps import *
 import matplotlib.pyplot as plt
-from untangling.utils.grasp import GraspSelector
 import time
 import cv2
 
@@ -15,31 +13,7 @@ sys.path.append('/home/mallika/triton4-lip/cable-untangling/learned_ip/')
 from push_through_backup2 import get_world_coord_from_pixel_coord
 from learn_from_demos_ltodo import DemoPipeline
 import logging
-T_CAM_BASE = RigidTransform.load("/home/mallika/triton4-lip/phoxipy/tools/arducam_to_world_bww.tf").as_frames(from_frame="arducam", to_frame="base_link")
-CONST = 1.25
-ARDUCAM_INTRINSICS = np.array([[758.923378*CONST,   0.,         960],
- [  0.,         757.65464286*CONST, 540],
- [  0.,           0.,           1.        ]])
-
-def get_world_coord_from_pixel_coord(pixel_coord, cam_intrinsics):
-    '''
-    pixel_coord: [x, y] in pixel coordinates
-    cam_intrinsics: 3x3 camera intrinsics matrix
-    '''
-    height_samples = [0.043108, 0.041911, 0.0420478, 0.04362216]
-
-    pixel_coord = np.array(pixel_coord)
-    print(pixel_coord)
-    point_3d_cam = np.linalg.inv(cam_intrinsics).dot(np.r_[pixel_coord, 1.0])
-    print(point_3d_cam)
-
-    point_3d_world = T_CAM_BASE.matrix.dot(np.r_[point_3d_cam, 1.0])
-
-    point_3d_world = point_3d_world[:3]/point_3d_world[3]
-
-    point_3d_world[-1] = np.mean(height_samples)
-    print('non-homogenous = ', point_3d_world)
-    return point_3d_world
+T_CAM_BASE = RigidTransform.load("/home/mallika/triton4-lip/phoxipy/tools/phoxi_to_world_bww.tf").as_frames(from_frame="phoxi", to_frame="base_link")
 
 def click_points_simple(img):
     fig, ax = plt.subplots()
@@ -94,7 +68,13 @@ def R_rigid_tf(world_tf):
     )
     return place_transform
 
+
+def acquire_image(pipeline):
+    img_rgbd = pipeline.iface.take_image()
+    return img_rgbd, img_rgbd.color._data
+
 if __name__ == "__main__":
+    arm = 'right'
     SPEED = (0.4, 6 * np.pi)
 
     args = parse_args()
@@ -103,18 +83,13 @@ if __name__ == "__main__":
     fullPipeline = initialize_pipeline(logLevel)
     
     iface = fullPipeline.iface
-
     iface.home()
     iface.sync()
     iface.close_grippers()
     time.sleep(1)
 
-    cam = cv2.VideoCapture(0)
-    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-    ret, img = cam.read()
-    # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
+    rgbd, img = acquire_image(fullPipeline)
+    
     CHECKERBOARD = (6,9)
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     
@@ -132,7 +107,7 @@ if __name__ == "__main__":
     # Find the chess board corners
     # If desired number of corners are found in the image then ret = true
     ret, corners = cv2.findChessboardCorners(gray, CHECKERBOARD, cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE)
-    # print(corners)
+    
     """
     If desired number of corner are detected,
     we refine the pixel coordinates and display 
@@ -142,14 +117,14 @@ if __name__ == "__main__":
         objpoints.append(objp)
         # refining pixel coordinates for given 2d points.
         corners2 = cv2.cornerSubPix(gray, corners, (11,11),(-1,-1), criteria)
-         
+        
         imgpoints.append(corners2)
- 
+
         # Draw and display the corners
         chessboard = cv2.drawChessboardCorners(img, CHECKERBOARD, corners2, ret)
-     
+    
     cv2.imshow('img',chessboard)
-    cv2.waitKey(0)
+    cv2.waitKey(1)
     place_1 = corners[0][0]
     print(place_1)
     place_2 = corners[5][0]
@@ -157,21 +132,28 @@ if __name__ == "__main__":
     place_4 = corners[-1][0]
     print(place_2)
     print(T_CAM_BASE)
-    place1_depthless = get_world_coord_from_pixel_coord(place_1, ARDUCAM_INTRINSICS)
-    place2_depthless = get_world_coord_from_pixel_coord(place_2, ARDUCAM_INTRINSICS)
-    place3_depthless = get_world_coord_from_pixel_coord(place_3, ARDUCAM_INTRINSICS)
-    place4_depthless = get_world_coord_from_pixel_coord(place_4, ARDUCAM_INTRINSICS)
+    place1_depthless = get_world_coord_from_pixel_coord(place_1, iface.cam.intrinsics)
+    place2_depthless = get_world_coord_from_pixel_coord(place_2, iface.cam.intrinsics)
+    place3_depthless = get_world_coord_from_pixel_coord(place_3, iface.cam.intrinsics)
+    place4_depthless = get_world_coord_from_pixel_coord(place_4, iface.cam.intrinsics)
     print("Depthless", place1_depthless)
 
-    place1_transform = L_rigid_tf(place1_depthless)
-    place2_transform = L_rigid_tf(place2_depthless)
-    place3_transform = L_rigid_tf(place3_depthless)
-    place4_transform = L_rigid_tf(place4_depthless)
-    # iface.go_pose_plan(l_target=place1_transform)
-    iface.go_cartesian(
-        l_targets=[place1_transform, place2_transform,place4_transform, place3_transform, place1_transform], removejumps=[6])
-    iface.sync()
-    # time.sleep(1)
-    # iface.home()
+    if arm == 'left':
+        place1_transform = L_rigid_tf(place1_depthless)
+        place2_transform = L_rigid_tf(place2_depthless)
+        place3_transform = L_rigid_tf(place3_depthless)
+        place4_transform = L_rigid_tf(place4_depthless)
+        iface.go_cartesian(
+            l_targets=[place1_transform, place2_transform,place4_transform, place3_transform, place1_transform], removejumps=[6])
+        iface.sync()
+    else:
+        place1_transform = R_rigid_tf(place1_depthless)
+        place2_transform = R_rigid_tf(place2_depthless)
+        place3_transform = R_rigid_tf(place3_depthless)
+        place4_transform = R_rigid_tf(place4_depthless)
+        iface.go_cartesian(
+            r_targets=[place1_transform, place2_transform,place4_transform, place3_transform, place1_transform], removejumps=[6])
+        iface.sync()
+
     iface.sync()
     time.sleep(5)

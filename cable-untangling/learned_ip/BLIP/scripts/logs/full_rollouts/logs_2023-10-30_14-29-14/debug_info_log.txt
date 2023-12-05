@@ -1,0 +1,1 @@
+14:29:20 INFO     Started Photoneo PhoXi 1703005

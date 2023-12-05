@@ -1,0 +1,7 @@
+17:44:44 Level 25 IP Moves Executed: 0
+17:45:32 Level 25 Image saved to ./logs/full_rollouts/logs_2023-11-01_17-44-43/images/trace2023-11-01_17-45-28.png
+17:45:32 Level 25 Trace saved to ./logs/full_rollouts/logs_2023-11-01_17-44-43/traces/trace_coords2023-11-01_17-45-28.png
+17:45:32 Level 25 Endpoints saved to ./logs/full_rollouts/logs_2023-11-01_17-44-43/traces/endpoints2023-11-01_17-45-28.png
+17:45:32 Level 25 Executing Trace Uncertainty Disambiguation (TUG-IP)
+
+Failure Condition: Robot Path Planning - Collision Detected

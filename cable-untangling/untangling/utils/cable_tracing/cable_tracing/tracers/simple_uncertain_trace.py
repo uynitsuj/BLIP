@@ -251,8 +251,103 @@ def get_updated_traversed_set(prev_set, prev_point, new_point, copy=True, sidele
 def is_path_done(final_point, termination_map):
     return termination_map[tuple(final_point.astype(int))].sum() > 0
 
+# def cable_inaccessible(img, visited):
+#     visited_mask = np.zeros(img.shape[:2], np.uint8)
+#     for pt in visited.keys():
+#         visited_mask[pt[0], pt[1]] = 1
+#     visited_mask = (cv2.dilate(visited_mask, np.ones((24, 24), np.uint8)) > 0)
+#     img_dilated = (img > 0).astype(np.uint8)[:, :, 0] > 0
+#     untraversed_cable = cv2.dilate((img_dilated & ~visited_mask).astype(np.uint8), np.ones((24, 24), np.uint8))
+#     num_components, labels, stats, centroids = cv2.connectedComponentsWithStats(untraversed_cable, 4, cv2.CV_32S)
+#     num_components_not_touching_edge = 0
+#     num_total_components = 0
+#     edge_mask = get_edge_mask(img, addtl_padding=1)
+#     for i in range(1, num_components):
+#         component_size = stats[i, cv2.CC_STAT_AREA]
+#         if component_size > 50:
+#             component_mask = labels == i
+#             if np.sum(component_mask * edge_mask) == 0:
+#                 num_components_not_touching_edge += 1
+#             num_total_components += 1
+#     return num_total_components > 1 and num_components_not_touching_edge > 0
+
+def cable_inaccessible(img, finished_set_path):
+    # plt.imshow(img, cmap='gray')
+    # for pt in finished_set_path.keys():
+    #     plt.scatter(pt[1], pt[0], c='r')
+    # plt.show()
+
+    xs, ys = [pt[0] for pt in finished_set_path.keys()], [pt[1] for pt in finished_set_path.keys()]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    gray = img[min_x:max_x+1,min_y:max_y+1,0] * 255.0
+    # print(gray.shape)
+    # plt.imshow(gray, cmap='gray')
+    # plt.show()
+    thresh = cv2.threshold(gray.astype('uint8'), 0, 255, cv2.THRESH_BINARY)[1]
+    # print(thresh.shape)
+    # plt.imshow(thresh, cmap='gray')
+    # plt.show()
+    labeled_mask = cv2.connectedComponentsWithStats(thresh, 4, cv2.CV_32S)[1]
+
+    # print(labeled_mask.shape)
+    # print(np.unique(labeled_mask))
+
+    bg_label = None
+    for i in range(labeled_mask.shape[0]):
+        for j in range(labeled_mask.shape[1]):
+            if labeled_mask[i,j] == 0:
+                if bg_label is None:
+                    bg_label = labeled_mask[i,j]
+                else:
+                    labeled_mask[i,j] = bg_label
+
+    # plt.imshow(labeled_mask)
+    # for pt in finished_set_path.keys():
+    #     plt.scatter(pt[1]-min_y, pt[0]-min_x, c='r')
+    # plt.show()
+
+    seed_val = None
+    for pt in finished_set_path.keys():
+        if seed_val is None:
+            seed_val = labeled_mask[pt[0]-min_x, pt[1]-min_y]
+        elif labeled_mask[pt[0]-min_x, pt[1]-min_y] != seed_val and labeled_mask[pt[0]-min_x, pt[1]-min_y] != bg_label:
+            return True
+
+    return False
+
+def calculate_curvature(points):
+    # Function to calculate the angle between two vectors
+    def angle_between(v1, v2):
+        v1_u = v1 / np.linalg.norm(v1)
+        v2_u = v2 / np.linalg.norm(v2)
+        return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
+    # List to store curvature scores
+    curvature_scores = []
+
+    for i in range(1, len(points) - 1):
+        p0 = np.array(points[i - 1])
+        p1 = np.array(points[i])
+        p2 = np.array(points[i + 1])
+
+        v1 = p1 - p0
+        v2 = p2 - p1
+
+        # Calculate the angle in radians
+        angle = angle_between(v1, v2)
+
+        # Convert angle to degrees for a more intuitive measure
+        angle
+
+        # You can use angle or angle_degrees as the curvature score
+        curvature_scores.append(angle)
+
+    return np.linalg.norm(curvature_scores)
+
+
 def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_from_edge=False, timeout=30,
-          bboxes=[], viz=True, exact_path_len=None, viz_iter=None, filter_bad=False, x_min=None, x_max=None, y_min=None, y_max=None):
+          bboxes=[], viz=False, exact_path_len=None, viz_iter=None, filter_bad=True, x_min=None, x_max=None, y_min=None, y_max=None):
     viz = False
     image = clean_input_color_image(image.copy(), start_point_1)
 
@@ -265,18 +360,26 @@ def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_
         # use the mask for the largest connected component within the bbox
         cropped_img = image[bbox[0]:bbox[0]+bbox[2], bbox[1]:bbox[1]+bbox[3], 0].astype(np.uint8)
         nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(cropped_img, connectivity=8)
+
+        
         sizes = stats[:, -1]
         max_label, max_size = 1, sizes[1]
         for j in range(2, nb_components):
             if sizes[j] > max_size:
                 max_label, max_size = j, sizes[j]
         termination_map[bbox[0]:bbox[0]+bbox[2], bbox[1]:bbox[1]+bbox[3], i] = (output == max_label)
+    # plt.title('Termination Map')
+    # # Assuming termination_map is a binary image (0s and 1s)
+    # plt.imshow(termination_map, cmap='gray')
+    # plt.axis('off')
 
+    # plt.show()
     # construct edge point map
     edge_checker_map = get_edge_mask(image, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
     edge_candidates = get_all_edge_candidates(image, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
     start_time = time.time()
+    print("Starting exploring paths...")
     logger.debug("Starting exploring paths...")
     finished_paths, finished_set_paths = [], []
     active_paths = [[[np.array(start_point_1)], {tuple(start_point_1): 0}]]
@@ -314,6 +417,7 @@ def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_
 
 
         if len(step_path_res) == 0:
+            print("Finished current path, doesn't end in bounding box.")
             logger.debug("Finished current path, doesn't end in bounding box.")
         else:
             num_active_paths = len(active_paths)
@@ -326,29 +430,41 @@ def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_
                     new_set = get_updated_traversed_set(cur_active_path[1], cur_active_path[0][-1], new_point, new_point_idx < len(step_path_res) - 1)
                     active_paths.append([cur_active_path[0] + [new_point], new_set])
                 else:
+                    print("Dropping path, too similar to existing path")
                     logger.debug("Dropping path, too similar to existing path")
             dedup_path_time_sum += time.time()
         # print("Full iter time", time.time() - start_iter_time)
 
         if time.time() - start_time > (1 + 0*1e5*int(viz)) * timeout:
+            print("Tracing timed out, thus tracing uncertain is true.")
             logger.info("Tracing timed out, thus tracing uncertain is true.")
             return None, finished_paths
     
     # done exploring the paths
     tot_time = time.time() - start_time
+    print("Done exploring paths, took {} seconds".format(tot_time))
+    print("Time to step paths took {} seconds".format(step_path_time_sum))
+    print("Time to dedup paths took {} seconds".format(dedup_path_time_sum))
     logger.debug("Done exploring paths, took {} seconds".format(tot_time))
     logger.debug("Time to step paths took {} seconds".format(step_path_time_sum))
     logger.debug("Time to dedup paths took {} seconds".format(dedup_path_time_sum))
-
+    filtered_paths = []
     if filter_bad:
-        filtered_paths = []
+        print('filtering bad paths')
         for i, path in enumerate(finished_paths):
+            # print("length of finished set path = ", len(finished_set_paths[i]))
+            # print("finished set path = ", finished_set_paths[i])
+            # print(cable_inaccessible(image, finished_set_paths[i]))
             if not cable_inaccessible(image, finished_set_paths[i]):
+                # print("Path {} is valid".format(i))
                 filtered_paths.append(path)
         finished_paths = filtered_paths
 
     ending_points = []
+    curve = []
+    print('length finished path = ', len(finished_paths))
     if viz and len(finished_paths) > 0:
+        print("Showing trace visualization")
         logger.debug("Showing trace visualizations")
         # create tracing visualization
         side_len_2 = np.ceil(np.sqrt(len(finished_paths))).astype(np.int32)
@@ -360,21 +476,34 @@ def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_
                 logger.debug(f"On {i}, {j}")
                 if i*side_len + j < len(finished_paths):
                     logger.debug(f"Showing {i}, {j}")
-                    axs[i, j].imshow(visualize_path(image, finished_paths[i*side_len + j]))
+                    # axs[i, j].imshow(visualize_path(image, finished_paths[i*side_len + j]))
+                    # print(f"Path: {finished_paths[i*side_len + j]}")
+                    # print(calculate_curvature(finished_paths[i*side_len + j]))
                     # logger.debug(f"End point: {finished_paths[i*side_len + j][-1]}")
                     # axs[i, j].set_title(f"End point: {finished_paths[i*side_len + j][-1]}")
+                    curve.append(calculate_curvature(finished_paths[i*side_len + j]))
                 axs[i, j].set_xticklabels([])
                 axs[i, j].set_yticklabels([])
                 axs[i, j].set_aspect('equal')
-        plt.subplots_adjust(wspace=0, hspace=0)
-        plt.show()
+        # plt.subplots_adjust(wspace=0, hspace=0)
+        # plt.show()
+        print("Done showing trace visualization")
         logger.debug("Done showing trace visualization")
+        # get index of lowest curvature
+        curve = np.array(curve)
+        lowest_curvature_idx = np.argmin(curve)
+        print("Lowest curvature path is path {}".format(lowest_curvature_idx))
+        finished_paths = [finished_paths[lowest_curvature_idx]]
 
     for path in finished_paths:
+        # print(len(path))
+        # print(path)
         ending_points.append(path[-1])
     ending_points = np.array(ending_points)
+    # print(ending_points)
     # find dimensions of bounding box
     if ending_points.shape[0] == 0:
+        print("No paths made it to any bounding box.")
         logging.warning("No paths made it to any bounding box.")
         return None, []
 
@@ -384,8 +513,17 @@ def trace(image, start_point_1, start_point_2, stop_when_crossing=False, resume_
     max_y = np.max(np.array([p[1] for p in ending_points]))
     if (max_y - min_y > 24 or max_x - min_x > 24) and not exact_path_len or \
         (max_y - min_y > 12 or max_x - min_x > 12) and exact_path_len:
+        print(f"Bounding box ({max_y - min_y} x {max_x - min_x}) around ending points is too large, UNCERTAIN.")
         logger.info(f"Bounding box ({max_y - min_y} x {max_x - min_x}) around ending points is too large, UNCERTAIN.")
+
+        plt.imshow(image)
+        plt.scatter(max_y, max_x, c='r')
+        plt.scatter(min_y, min_x, c='r')
+        
+        plt.show()
+
         return None, finished_paths
     else:
+        print("Certain analytic trace result.")
         logger.info("Certain analytic trace result.")
         return finished_paths[0], finished_paths
